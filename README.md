@@ -29,31 +29,14 @@ Then follow the Jupyter notebooks in the `tutorials` folder to get started.
   * Yu-Xiang Wang, Borja Balle, and Shiva Kasiviswanathan. (2019) ["Subsampled Renyi Differential Privacy and Analytical Moments Accountant."](https://arxiv.org/abs/1808.00087). in AISTATS-2019  (**Notable Paper Award**).
 
 
-### Examples of composing over many rounds
+### Examples：
 
 
-<object data="https://github.com/yuxiangw/autodp/blob/master/figures/gaussian_compose_mean.pdf" type="application/pdf" width="400px" height="400px">
-    <embed src="https://github.com/yuxiangw/autodp/blob/master/figures/gaussian_compose_mean.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="http://yoursite.com/the.pdf">Download PDF</a>.</p>
-    </embed>
-</object><object data="https://github.com/yuxiangw/autodp/blob/master/figures/LN_gaussian_compose_mean.pdf" type="application/pdf" width="400px" height="400px">
-    <embed src="https://github.com/yuxiangw/autodp/blob/master/figures/LN_gaussian_compose_mean.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="http://yoursite.com/the.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
+<img src="https://github.com/yuxiangw/autodp/blob/master/figures/gaussian_compose_mean.png" alt="Composing Subsampled Gaussian Mechanisms (high noise)" width="400x"/><img src="https://github.com/yuxiangw/autodp/blob/master/figures/LN_gaussian_compose_mean.png" alt="Composing Subsampled Gaussian Mechanisms (low noise)" width="400x"/>
 
-**Figure 1**: Composing subsampled Gaussian Mechanisms. Left: High noise setting with &sigma;=5, &gamma;=0.001, &delta;=1e-8.  Right: Low noise setting with &sigma;=0.5, &gamma;=0.001, &delta;=1e-8.
+**Figure 1**: Composing subsampled Gaussian Mechanisms. *Left*: High noise setting with &sigma;=5, &gamma;=0.001, &delta;=1e-8.  *Right*: Low noise setting with &sigma;=0.5, &gamma;=0.001, &delta;=1e-8.
 
 
+<img src="https://github.com/yuxiangw/autodp/blob/master/figures/laplace_compose_mean.png" alt="Composing Subsampled Laplace Mechanisms (high noise)" width="400x"/><img src="https://github.com/yuxiangw/autodp/blob/master/figures/LN_laplace_compose_mean.png" alt="Composing Subsampled Laplace Mechanisms (low noise)" width="400x"/>
 
-<object data="https://github.com/yuxiangw/autodp/blob/master/figures/laplace_compose_mean.pdf" type="application/pdf" width="400px" height="400px">
-    <embed src="https://github.com/yuxiangw/autodp/blob/master/figures/laplace_compose_mean.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="http://yoursite.com/the.pdf">Download PDF</a>.</p>
-    </embed>
-</object> <object data="https://github.com/yuxiangw/autodp/blob/master/figures/LN_laplace_compose_mean.pdf" type="application/pdf" width="400px" height="400px">
-    <embed src="https://github.com/yuxiangw/autodp/blob/master/figures/LN_laplace_compose_mean.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="http://yoursite.com/the.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
-
-**Figure 1**: Composing subsampled Laplace Mechanisms. Left: High noise setting with b=2, &gamma;=0.001, &delta;=1e-8.  Right: Low noise setting with b=0.5, &gamma;=0.001, &delta;=1e-8.
+**Figure 1**: Composing subsampled Laplace Mechanisms. *Left*: High noise setting with b=2, &gamma;=0.001, &delta;=1e-8.  *Right*: Low noise setting with b=0.5, &gamma;=0.001, &delta;=1e-8.
