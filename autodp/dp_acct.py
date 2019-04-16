@@ -1,5 +1,5 @@
 """
-This file implements the classical DP accountant by Kairouz, Oh, V.
+This file implements the classical DP accountant by Kairouz, Oh, Viswanath
 """
 
 
