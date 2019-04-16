@@ -1,13 +1,14 @@
-# autodp: A package to automate differential privacy computation
+# autodp: Automating differential privacy computation
 
 ### Author: 
 Yu-Xiang Wang
 
 ### Highlights:
 
-1. An RDP based analytical Moment Accountant implementation that is numerically stable.
+1. An RDP (Renyi Differential Privacy) based analytical Moment Accountant implementation that is numerically stable.
 2. Supports privacy amplification for generic RDP algorithm for subsampling without replacement and poisson sampling.
 3. A privacy calibrator that numerically calibrates noise to privacy requirements using RDP.
+4. Bring Your Own Mechanism:  Just implement the RDP of your own DP algorithm as a function.
 
 ### How to use?
 ```
@@ -21,4 +22,4 @@ Currently we support only Python3.
 
 ### Research Papers:
 
-..* Wang, Yu-Xiang, Borja Balle, and Shiva Kasiviswanathan. (2019) "Subsampled R\'enyi Differential Privacy and Analytical Moments Accountant." in AISTATS-2019  ($Notable Paper Award$).
+  * Wang, Yu-Xiang, Borja Balle, and Shiva Kasiviswanathan. (2019) ["Subsampled Renyi Differential Privacy and Analytical Moments Accountant."](https://arxiv.org/abs/1808.00087). in AISTATS-2019  (**Notable Paper Award**).
