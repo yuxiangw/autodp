@@ -19,9 +19,44 @@ import autodp
 
 from autodp import utils, rdp_bank
 from autodp.privacy_calibrator import subsample_epsdelta
-
+import scipy
 import math
 
+def general_upperbound(func, mm, prob):
+    """
+
+    :param func:
+    :param mm: alpha in RDP
+    :param prob: sample probability
+    :return: the upperbound in theorem 1 in 2019 ICML,could be applied for general case(including poisson distribution)
+    k_approx = 100 k approximation is applied here
+    """
+    def cgf(x):
+        return (x - 1) * func(x)
+
+    if np.isinf(func(mm)):
+        return np.inf
+    if mm == 1 or mm == 0:
+        return 0
+
+    cur_k = np.minimum(50, mm - 1) # choose small k-approx for general upperbound (here is 50) in case of scipy-accuracy
+    log_term_1 = mm * np.log(1 - prob)
+    #logBin = utils.get_binom_coeffs(mm)
+    log_term_2 = np.log(3) - func(mm) + mm * utils.stable_logsumexp_two(np.log(1 - prob), np.log(prob) + func(mm))
+    neg_term_3 = [np.log(scipy.special.comb(mm,l)) + np.log(3) + (mm - l) * np.log(1 - prob) + l * np.log(prob) +
+                  utils.stable_log_diff_exp((l - 1) * func(mm), cgf(l))[1] for l in
+                  range(3, cur_k + 1)]
+    neg_term_4 = np.log(mm*(mm - 1)/2) + 2 * np.log(prob) + (mm - 2) * np.log(
+        1 - prob) + utils.stable_log_diff_exp(np.log(3) + func(mm), func(2))[1]
+    neg_term_5 = np.log(2) + np.log(prob) + np.log(mm) + (mm - 1) * np.log(1 - prob)
+    neg_term_6 = mm * np.log(1 - prob) + np.log(3) - func(mm)
+    pos_term = utils.stable_logsumexp([log_term_1, log_term_2])
+    neg_term_3.append(neg_term_4)
+    neg_term_3.append(neg_term_5)
+    neg_term_3.append(neg_term_6)
+    neg_term = utils.stable_logsumexp(neg_term_3)
+    bound = utils.stable_log_diff_exp(pos_term, neg_term)[1]
+    return bound
 
 def fast_subsampled_cgf_upperbound(func, mm, prob, deltas_local):
     # evaulate the fast CGF bound for the subsampled mechanism
@@ -118,34 +153,56 @@ def fast_poission_subsampled_cgf_upperbound(func, mm, prob):
     return np.minimum(bound1,bound2)
 
 def fast_k_subsample_upperbound(func, mm, prob, k):
-    # evaluate the fast k-term approximate upperbound for the subsampled mechanism in proposition 8
-    # func evaluates the RDP of the base mechanism
-    # mm is alpha, prob is gamma, k is k-term for approximation
-    # log ( (1 - gamma + alpha * gamma)(1 - gamma)^(alpha - 1) + sum_{l=2}^k (alpha choose l) * (1 - gamma)^{alpha - l} gamma^l e^{(l-1)\eps(l)} \
-    # + \eta(\eps(alpha), alpha, gamma)
-    # \eta(\eps(alpha),alpha,gamma) = (alpha choose {k+1}) * gamma^{k + 1} * e^{k * \eps(alpha)} * (1 - gamma + gamma*e^{\eps(alpha)})^{alpha-k-1}
+    """
+
+     :param func:
+     :param mm:
+     :param prob: sample probability
+     :param k: approximate term
+     :return: k-term approximate upper bound in therorem 11 in ICML-19
+     """
+    def cgf(x):
+        return (x - 1) * func(x)
+
     if np.isinf(func(mm)):
         return np.inf
     if mm == 1:
         return 0
+    #logBin = utils.get_binom_coeffs(mm)
+    cur_k = np.minimum(k, mm - 1)
+    if (2 * cur_k) >= mm:
+        exact_term_1 = (mm - 1) * np.log(1 - prob) + np.log(mm * prob - prob + 1)
+        exact_term_2 = [np.log(scipy.special.comb(mm,l))  + (mm - l) * np.log(1 - prob) + l * np.log(prob) + cgf(l) for l in
+                        range(2, mm + 1)]
+        exact_term_2.append(exact_term_1)
+        bound = utils.stable_logsumexp(exact_term_2)
+        return bound
 
-
-    def cgf(x):
-        return (x-1) * func(x)
-
-    log_term_1 = (mm-1) * np.log(1-prob) + np.log(1 - prob + mm * prob)
-    logBinomC = utils.get_binom_coeffs(mm)
-    log_term_2 = [(logBinomC[int(mm),j] + j * np.log(prob) + (mm - j) * np.log(1 - prob) + cgf(j)) for j in range(2,k+1)]
-    log_term_3 = logBinomC[int(mm),k+1]+(k+1) * np.log(prob) + k * func(mm) + (mm - k - 1) * np.log(1 - prob + prob * np.exp(func(mm)))
-    log_term_2.append(log_term_1)
-    log_term_2.append(log_term_3)
-    bound  = utils.stable_logsumexp(log_term_2)/(mm-1)
-    return bound
+    s, mag1 = utils.stable_log_diff_exp(0, -func(mm - cur_k))
+    new_log_term_1 = np.log(1 - prob) * mm + mag1
+    new_log_term_2 = -func(mm - cur_k) + mm * utils.stable_logsumexp_two(np.log(1 - prob),
+                                                                         np.log(prob) + func(mm - cur_k))
+    new_log_term_3 = [np.log(scipy.special.comb(mm,l)) + (mm - l) * np.log(1 - prob) + l * np.log(prob) +
+                      utils.stable_log_diff_exp((l - 1) * func(mm - cur_k), cgf(l))[1] for l in
+                      range(2, cur_k + 1)]
+    if len(new_log_term_3) > 0:
+        new_log_term_3 = utils.stable_logsumexp(new_log_term_3)
+    else:
+        return utils.stable_logsumexp_two(new_log_term_1, new_log_term_2)
+    new_log_term_4 = [np.log(scipy.special.comb(mm,mm-l)) + (mm - l) * np.log(1 - prob) + l * np.log(prob) +
+                      utils.stable_log_diff_exp(cgf(l), (l - 1) * func(mm - cur_k))[1] for l in
+                      range(mm - cur_k + 1, mm + 1)]
+    new_log_term_4.append(new_log_term_1)
+    new_log_term_4.append(new_log_term_2)
+    new_log_term_4 = utils.stable_logsumexp(new_log_term_4)
+    s, new_log_term_5 = utils.stable_log_diff_exp(new_log_term_4, new_log_term_3)
+    new_bound = new_log_term_5
+    return new_bound
 
 
 class anaRDPacct:
     """A class that keeps track of the analytical expression of the RDP --- 1/(alpha-1)*CGF of the privacy loss R.V."""
-    def __init__(self, m=100, tol=0.1, m_max=500, m_lin_max=1000, verbose=False):
+    def __init__(self, m=100, tol=0.1, m_max=500, m_lin_max=10000, approx = False, verbose=False):
         # m_max indicates the number that we calculate binomial coefficients exactly up to.
         # beyond that we use Stirling approximation.
 
@@ -154,7 +211,7 @@ class anaRDPacct:
         self.m_max = m_max # An upper bound of the quadratic dependence
         self.m_lin_max = m_lin_max # An upper bound of the linear dependence.
         self.verbose = verbose
-
+        self.approx = approx
         self.lambs = np.linspace(1, self.m, self.m).astype(int) # Corresponds to \alpha = 2,3,4,5,.... for RDP
 
         self.alphas = np.linspace(1, self.m, self.m).astype(int)
@@ -325,9 +382,9 @@ class anaRDPacct:
                 while (not np.isposinf(cur)) and fun(bestint-1)-fun(bestint-2) < -1e-8:
                     bestint = bestint*2
                     cur = fun(bestint)
-#                    if bestint > self.m_lin_max:
-#                        print('Warning: Reach linear upper bound: m_lin_max.')
-#                        return cur
+                    if bestint > self.m_lin_max and self.approx ==True:
+                        print('Warning: Reach linear upper bound: m_lin_max.')
+                        return cur
 
                 results = minimize_scalar(fun, method='Bounded', bounds=[self.m-1, bestint + 2],
                                           options={'disp': False})
@@ -417,6 +474,11 @@ class anaRDPacct:
                 mm = int(x)
 
                 fastupperbound = fast_subsampled_cgf_upperbound(func, mm, prob, deltas_local)
+                fastupperbound2 = general_upperbound(func, mm, prob)
+                if self.approx ==True:
+                    if fastupperbound2 <0:
+                        print('general rdp is negative',x)
+                    return fastupperbound2
 
                 if mm <= self.alphas[-1]: # compute the bound exactly. Requires book keeping of O(x^2)
 
@@ -547,6 +609,11 @@ class anaRDPacct:
                 #
                 fastbound = fast_poission_subsampled_cgf_upperbound(func, mm, prob)
 
+                k = self.alphas[-1]
+                fastbound_k = fast_k_subsample_upperbound(func, mm, prob,k)
+                if self.approx == True:
+                    return fastbound_k
+                #fastbound = min(fastbound, fastbound_k)
                 if x <= self.alphas[-1]: # compute the bound exactly.
                     moments = [cgf(j-1) +j*np.log(prob) + (mm-j) * np.log(1-prob)
                                + self.logBinomC[mm, j] for j in range(2,mm+1,1)]
