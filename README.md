@@ -1,8 +1,5 @@
 # autodp: Automating differential privacy computation
 
-### Author: 
-Yu-Xiang Wang
-
 ### Highlights:
 
 1. An RDP (Renyi Differential Privacy) based analytical Moment Accountant implementation that is numerically stable.
@@ -40,3 +37,15 @@ Then follow the Jupyter notebooks in the `tutorials` folder to get started.
 <img src="https://github.com/yuxiangw/autodp/blob/master/figures/laplace_compose_mean.png" alt="Composing Subsampled Laplace Mechanisms (high noise)" width="400x"/><img src="https://github.com/yuxiangw/autodp/blob/master/figures/LN_laplace_compose_mean.png" alt="Composing Subsampled Laplace Mechanisms (low noise)" width="400x"/>
 
 **Figure 2**: Composing subsampled Laplace Mechanisms. *Left*: High noise setting with b=2, &gamma;=0.001, &delta;=1e-8.  *Right*: Low noise setting with b=0.5, &gamma;=0.001, &delta;=1e-8.
+
+
+### How to Contribute?
+
+Follow the standard practice. Fork the repo, create a branch, develop the edit and send a pull request. One of the maintainers are going to review the code and merge the PR. Alternatively, please feel free to creat issues to report bugs, provide comments and suggest new features. 
+
+At the moment, contributions to examples, tutorials, as well as the RDP of currently unsupported mechanisms are most welcome (add them to ```RDP_bank.py```)! Please explain clearly what the contribution is about and attach/cite papers whenever appropriate.
+
+
+
+
+
