@@ -336,40 +336,40 @@ class anaRDPacct:
                 self.alphas = np.concatenate((self.alphas, np.array(new_alphas)))  # array of integers
                 self.m = self.m * 2
 
-                mm = np.max(self.alphas)
+            mm = np.max(self.alphas)
 
-                rdp_int_new = np.zeros_like(self.alphas, float)
+            rdp_int_new = np.zeros_like(self.alphas, float)
 
-                for key,val in self.cache.items():
-                    idx = self.idxhash[key]
-                    rdp = self.RDPs[idx]
-                    newarray = np.zeros_like(self.alphas, float)
-                    for j in range(2,mm+1,1):
-                        newarray[j-1] = rdp(1.0*j)
-                    newarray[0]=newarray[1]
-                    coeff = self.coeffs[idx]
-                    rdp_int_new += newarray * coeff
-                    self.cache[key] = newarray
+            for key,val in self.cache.items():
+                idx = self.idxhash[key]
+                rdp = self.RDPs[idx]
+                newarray = np.zeros_like(self.alphas, float)
+                for j in range(2,mm+1,1):
+                    newarray[j-1] = rdp(1.0*j)
+                newarray[0]=newarray[1]
+                coeff = self.coeffs[idx]
+                rdp_int_new += newarray * coeff
+                self.cache[key] = newarray
 
-                self.RDPs_int = rdp_int_new
+            self.RDPs_int = rdp_int_new
 
-                # # update the integer CGF and the cache for each function
-                # rdp_int_new = np.zeros_like(self.RDPs_int)
-                # for key,val in self.cache.items():
-                #     idx = self.idxhash[key]
-                #     rdp = self.RDPs[idx]
-                #     newarray = np.zeros_like(self.RDPs_int)
-                #     for j in range(self.m):
-                #         newarray[j] = rdp(1.0*(j+self.m+1))
-                #
-                #     coeff = self.coeffs[idx]
-                #     rdp_int_new += newarray * coeff
-                #     self.cache[key] = np.concatenate((val, newarray))
-                #
-                # # update the corresponding quantities
-                # self.RDPs_int = np.concatenate((self.RDPs_int, rdp_int_new))
+            # # update the integer CGF and the cache for each function
+            # rdp_int_new = np.zeros_like(self.RDPs_int)
+            # for key,val in self.cache.items():
+            #     idx = self.idxhash[key]
+            #     rdp = self.RDPs[idx]
+            #     newarray = np.zeros_like(self.RDPs_int)
+            #     for j in range(self.m):
+            #         newarray[j] = rdp(1.0*(j+self.m+1))
+            #
+            #     coeff = self.coeffs[idx]
+            #     rdp_int_new += newarray * coeff
+            #     self.cache[key] = np.concatenate((val, newarray))
+            #
+            # # update the corresponding quantities
+            # self.RDPs_int = np.concatenate((self.RDPs_int, rdp_int_new))
 
-                #self.m = self.m*2
+            #self.m = self.m*2
 
             bestint = np.argmin(np.log(1 / delta)/(self.alphas[1:]-1) + self.RDPs_int[1:]) + 1
 
