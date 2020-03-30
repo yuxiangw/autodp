@@ -10,9 +10,29 @@ the per-instance RDP associated with two given data sets.
 
 
 import numpy as np
-
+import math
 from autodp import utils
 
+
+def _log1mexp(x):
+    """ from pate Numerically stable computation of log(1-exp(x))."""
+    if x < -1:
+        return math.log1p(-math.exp(x))
+    elif x < 0:
+        return math.log(-math.expm1(x))
+    elif x == 0:
+        return -np.inf
+    else:
+        raise ValueError("Argument must be non-positive.")
+
+
+def stable_log_diff_exp(x):
+    # ensure that y > x
+    # this function returns the stable version of log(exp(y)-exp(x)) if y > x
+
+    mag = np.log(1 - np.exp(x - 0))
+
+    return mag
 
 
 def RDP_gaussian(params, alpha):
@@ -47,6 +67,153 @@ def RDP_laplace(params, alpha):
     else:  # alpha > 1
         return utils.stable_logsumexp_two((alpha-1.0) / b + np.log(alpha / (2.0 * alpha - 1)),
                                            -1.0*alpha / b + np.log((alpha-1.0) / (2.0 * alpha - 1)))/(alpha-1)
+
+
+def RDP_independent_noisy_screen(params, alpha):
+
+    """
+    return the approximation of data-independent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN)
+    The exact data-independent bound requires searching a max_count from [k/c, k] to maximize RDP_noisy_screening for any alpha
+
+    """
+    threshold =params['thresh']
+    k = params['k']
+    sigma = params['sigma']
+    import scipy.stats
+    rdp = []
+
+    for adjacent in [+1, -1]:
+        for max_count in [int(k/10),threshold]:
+
+            logp = scipy.stats.norm.logsf(threshold - max_count, scale=sigma)
+            logq = scipy.stats.norm.logsf(threshold - max_count+adjacent, scale=sigma)
+            log1q = _log1mexp(logq)
+            log1p = _log1mexp(logp)
+            if alpha == 1:
+                return np.exp(logp)*(logp-logq) +(1-np.exp(logp))*(log1p-log1q)
+            elif np.isinf(alpha):
+                return np.abs(np.exp(logp-logq)*1.0)
+
+            term1 = alpha*logp -(alpha-1)*logq
+            term2 = alpha*log1p -(alpha-1)*log1q
+            log_term = utils.stable_logsumexp_two(term1,term2)
+            rdp.append(log_term)
+    log_term = np.max(log_term)
+    return 1.0*log_term /(alpha-1)
+
+def RDP_noisy_screen(params, alpha):
+
+    """
+    return the data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN)
+    param logp, logq: the log of p and q, where p is probability of P(max_vote + noise > Threshold)
+
+    """
+    logp =params['logp']
+    logq = params['logq']
+    log1q = _log1mexp(logq)
+    log1p = _log1mexp(logp)
+    if alpha == 1:
+        return np.exp(logp)*(logp-logq) +(1-np.exp(logp))*(log1p-log1q)
+    elif np.isinf(alpha):
+        return np.abs(np.exp(logp-logq)*1.0)
+
+    term1 = alpha*logp -(alpha-1)*logq
+    term2 = alpha*log1p -(alpha-1)*log1q
+    log_term = utils.stable_logsumexp_two(term1,term2)
+
+    return 1.0*log_term /(alpha-1)
+
+def RDP_inde_pate_gaussian(params, alpha):
+    """
+    Return the data-independent RDP of Noisy Aggregation (the global sensitivity is 2)
+    :param params:
+    :param alpha:
+    :return:
+    """
+    sigma = params['sigma']
+    return 1.0/sigma **2 *alpha
+
+def RDP_depend_pate_gaussian(params, alpha):
+
+    """
+    Return the data-dependent RDP of GNMAX (proposed in PATE2)
+    Bounds RDP from above of GNMax given an upper bound on q (Theorem 6).
+
+    Args:
+      logq: Natural logarithm of the probability of a non-argmax outcome.
+      sigma: Standard deviation of Gaussian noise.
+      orders: An array_like list of Renyi orders.
+
+    Returns:
+      Upper bound on RPD for all orders. A scalar if orders is a scalar.
+
+    Raises:
+      ValueError: If the input is malformed.
+    """
+    logq = params['logq']
+    sigma = params['sigma']
+
+    if alpha == 1:
+        p = np.exp(logq)
+        w = (2 * p - 1) * (logq - _log1mexp(logq))
+        return w
+    if logq > 0 or sigma < 0 or np.any(alpha < 1):  # not defined for alpha=1
+        raise ValueError("Inputs are malformed.")
+
+    if np.isneginf(logq):  # If the mechanism's output is fixed, it has 0-DP.
+        print('isneginf', logq)
+        if np.isscalar(alpha):
+            return 0.
+        else:
+            return np.full_like(alpha, 0., dtype=np.float)
+
+    variance = sigma ** 2
+
+    # Use two different higher orders: mu_hi1 and mu_hi2 computed according to
+    # Proposition 10.
+    mu_hi2 = math.sqrt(variance * -logq)
+    mu_hi1 = mu_hi2 + 1
+
+    orders_vec = np.atleast_1d(alpha)
+
+    ret = orders_vec / variance  # baseline: data-independent bound
+
+    # Filter out entries where data-dependent bound does not apply.
+    mask = np.logical_and(mu_hi1 > orders_vec, mu_hi2 > 1)
+
+    rdp_hi1 = mu_hi1 / variance
+    rdp_hi2 = mu_hi2 / variance
+
+    log_a2 = (mu_hi2 - 1) * rdp_hi2
+
+    # Make sure q is in the increasing wrt q range and A is positive.
+    if (np.any(mask) and logq <= log_a2 - mu_hi2 *
+            (math.log(1 + 1 / (mu_hi1 - 1)) + math.log(1 + 1 / (mu_hi2 - 1))) and
+            -logq > rdp_hi2):
+        # Use log1p(x) = log(1 + x) to avoid catastrophic cancellations when x ~ 0.
+        log1q = _log1mexp(logq)  # log1q = log(1-q)
+        log_a = (alpha - 1) * (
+                log1q - _log1mexp((logq + rdp_hi2) * (1 - 1 / mu_hi2)))
+        log_b = (alpha - 1) * (rdp_hi1 - logq / (mu_hi1 - 1))
+
+        # Use logaddexp(x, y) = log(e^x + e^y) to avoid overflow for large x, y.
+        log_s1 = utils.stable_logsumexp_two(log1q + log_a, logq + log_b)
+        log_s = np.logaddexp(log1q + log_a, logq + log_b)
+        ret[mask] = np.minimum(ret, log_s / (alpha - 1))[mask]
+    # print('alpha ={} mask {}'.format(alpha,ret))
+    if ret[mask] < 0:
+        print('negative ret', ret)
+        print('log_s1 ={} log_s = {}'.format(log_s1, log_s))
+        print('alpha = {} mu_hi1 ={}'.format(alpha, mu_hi1))
+        print('log1q = {} log_a = {} log_b={} log_s = {}'.format(log1q, log_a, log_b, log_s))
+        ret[mask] = 1. / (sigma ** 2) * alpha
+        # print('replace ret with', ret)
+    assert np.all(ret >= 0)
+
+    if np.isscalar(alpha):
+        return np.asscalar(ret)
+    else:
+        return ret
 
 
 def RDP_randresponse(params, alpha):
