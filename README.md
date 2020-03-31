@@ -24,7 +24,7 @@ Then follow the Jupyter notebooks in the `tutorials` folder to get started.
 ### Research Papers:
 
   * Yu-Xiang Wang, Borja Balle, and Shiva Kasiviswanathan. (2019) ["Subsampled Renyi Differential Privacy and Analytical Moments Accountant."](https://arxiv.org/abs/1808.00087). in AISTATS-2019  (**Notable Paper Award**).
-  * Yuqing Zhu, Yu-Xiang Wang. (2019) ["Poisson Subsampled Renyi Differential Privacy"](). ICML-2019, to appear.
+  * Yuqing Zhu, Yu-Xiang Wang. (2019) ["Poisson Subsampled Renyi Differential Privacy"](http://proceedings.mlr.press/v97/zhu19c.html). ICML-2019.
 
 ### Examples：
 
@@ -43,7 +43,7 @@ Then follow the Jupyter notebooks in the `tutorials` folder to get started.
 
 Follow the standard practice. Fork the repo, create a branch, develop the edit and send a pull request. One of the maintainers are going to review the code and merge the PR. Alternatively, please feel free to creat issues to report bugs, provide comments and suggest new features. 
 
-At the moment, contributions to examples, tutorials, as well as the RDP of currently unsupported mechanisms are most welcome (add them to ```RDP_bank.py```)! Please explain clearly what the contribution is about and attach/cite papers whenever appropriate.
+At the moment, contributions to examples, tutorials, as well as the RDP of currently unsupported mechanisms are most welcome (add them to ```RDP_bank.py```)! Please explain clearly what the contribution is about in the PR and attach/cite papers whenever appropriate.
 
 
 

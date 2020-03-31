@@ -10,5 +10,5 @@ Contributors of AutoDP
 
 ### Contributors
 
-Please add your name according ot the following format with the PR.
+Please add your name according ot the following format as part of the PR.
 * [Your name](your.github.website)

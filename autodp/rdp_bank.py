@@ -212,7 +212,7 @@ def pRDP_asymp_subsampled_gaussian(params, alpha):
     assert((prob<1) and (prob >= 0))
 
     # The example where we have an approximately worst case asymptotic data set
-    thresh = sigma**2/prob + 1
+    thresh = sigma**2/(prob*(1-prob)) + 1
     if alpha <= 1:
         return 0
     elif alpha >= thresh:
@@ -237,7 +237,7 @@ def pRDP_asymp_subsampled_gaussian_best_case(params, alpha):
     assert((prob<1) and (prob >= 0))
 
     # The example where we have an approximately best case data set
-    return prob**2 / (2*sigma**2 + prob*(n-1.0/n)/2) * alpha
+    return prob**2 / (2*sigma**2 + prob*(1-prob)*(n-1.0/n)/2) * alpha
 
 
 
