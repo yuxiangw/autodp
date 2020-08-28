@@ -43,8 +43,8 @@ def RDP_gaussian(params, alpha):
     :return: Evaluation of the RDP's epsilon
     """
     sigma = params['sigma']
-    # assert(sigma > 0)
-    # assert(alpha >= 0)
+    assert(sigma > 0)
+    assert(alpha >= 0)
     return 0.5 / sigma ** 2 * alpha
 
 

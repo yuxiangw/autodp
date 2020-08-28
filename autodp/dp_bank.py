@@ -8,7 +8,9 @@ In some cases, given a fixed randomized algorithm on a fixed data set, it calcul
 """
 
 import numpy as np
-from autodp import rdp_acct, rdp_bank
+from autodp import rdp_acct, rdp_bank, utils
+from scipy.stats import norm
+from scipy.optimize import minimize_scalar, root_scalar
 
 
 def get_eps_rdp(func, delta):
@@ -51,10 +53,35 @@ def get_eps_gaussian(sigma, delta):
     return get_eps_rdp(func,delta)
 
 
+def get_logdelta_ana_gaussian(sigma,eps):
+    """ This function calculates the delta parameter for analytical gaussian mechanism given eps"""
+    assert(eps>=0)
+    s, mag = utils.stable_log_diff_exp(norm.logcdf(0.5 / sigma - eps * sigma),
+                                       eps + norm.logcdf(-0.5/sigma - eps * sigma))
+    return mag
+
+
 def get_eps_ana_gaussian(sigma, delta):
-    """ TBA"""
-    #TODO: add the analytical guassian way to calculating epsilon given delta.
-    return None
+    """ This function calculates the gaussian mechanism given sigma and delta using analytical GM"""
+    # Basically inverting the above function by solving a nonlinear equation
+    assert(delta >=0 and delta <=1)
+
+    if delta == 0:
+        return np.inf
+    if np.log(delta) >= get_logdelta_ana_gaussian(sigma, 0.0):
+        return 0.0
+
+    def fun(x):
+        if x < 0:
+            return np.inf
+        else:
+            return get_logdelta_ana_gaussian(sigma, x) - np.log(delta)
+    # The following by default uses the 'secant' method for finding
+    results = root_scalar(fun, x0=0, x1=5)
+    if results.converged:
+        return results.root
+    else:
+        return None
 
 
 def get_eps_laplace(b,delta):
