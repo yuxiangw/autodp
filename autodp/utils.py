@@ -28,6 +28,22 @@ def stable_log_diff_exp(x, y):
 
     return s, mag
 
+def stable_log_sinh(x):
+    assert(x >= 0)
+    s, mag = stable_log_diff_exp(x, -x)
+    return np.log(0.5) + mag
+
+def _log1mexp(x):
+    """ from pate Numerically stable computation of log(1-exp(x))."""
+    if x < -1:
+        return math.log1p(-math.exp(x))
+    elif x < 0:
+        return math.log(-math.expm1(x))
+    elif x == 0:
+        return -np.inf
+    else:
+        raise ValueError("Argument must be non-positive.")
+
 
 def stable_sum_signed(xs, x, ys, y):
     # x and y are log abs,  xs,ys are signs
@@ -49,7 +65,6 @@ def stable_inplace_diff_in_log(vec, signs, n=-1):
             `vec` and `signs` jointly  describe a vector of real numbers' sign and abs in log scale.
      Output:
         The first n-1 dimension of vec and signs will store the log-abs and sign of the difference.
-
      """
     #
     # And the first n-1 dimension of signs with the sign of the differences.
@@ -96,6 +111,22 @@ def get_forward_diffs(fun, n):
 
 
 
+def subsample_epsdelta(eps,delta,prob):
+    """
+    :param eps: privacy loss eps of the base mechanism
+    :param delta: privacy loss delta of the base mechanism
+    :param prob: subsampling probability
+    :return: Amplified eps and delta
+    This result applies to both subsampling with replacement and Poisson subsampling.
+    The result for Poisson subsmapling is due to Theorem 1 of :
+    Li, Ninghui, Qardaji, Wahbeh, and Su, Dong. On sampling, anonymization, and differential privacy or,
+    k-anonymization meets differential privacy
+    The result for Subsampling with replacement is due to:
+    Jon Ullman's lecture notes: http://www.ccs.neu.edu/home/jullman/PrivacyS17/HW1sol.pdf
+    See the proof of (b)
+    """
+
+    return np.log(1+prob*(np.exp(eps)-1)), prob*delta
 
 
 
@@ -164,6 +195,7 @@ def get_forward_diffs_direct(fun,n):
 
 
 def logcomb(n, k):
+
     return (gammaln(n+1) - gammaln(n-k+1) - gammaln(k+1))
 
 def get_binom_coeffs(sz):

@@ -1,5 +1,40 @@
 # autodp: Automating differential privacy computation
 
+## All new autodp "Mechanism" API
+
+### New features comes with the new API
+
+1. Object oriented design:  check out ```autodp_core.py```
+2. Zoos are open with many private animals:  ```mechanism_zoo```,  ```transformer_zoo```, ```calibrator_zoo```. 
+2. Added support for f-DP and privacy profile alongside RDP (they all function under the hood, so that you don't need to know how they work.)
+3. Stronger RDP to (eps,delta)-DP conversion.
+4. Privacy amplification by X.
+5. Exactly tight privacy accounting for Gaussian mechanisms and their compositions.
+6. Interpretable privacy guarantee via Hypothesis testing interpretation for any Mechanism.
+
+
+The new API makes it extremely easy to obtain state-of-the-art privacy guarantees for your favorite randomized mechanisms, with just a few lines of codes.
+
+
+###  Follow these steps to try the new API. 
+
+First install it locally by:
+```
+pip install -e .
+```
+or
+
+```
+pip3 install -e .
+```
+
+Then check out the tutorial for the new api in the tutorial folder.
+
+
+
+## ------------- The from the autodp v.0.11 -----------------
+
+
 ### Highlights:
 
 1. An RDP (Renyi Differential Privacy) based analytical Moment Accountant implementation that is numerically stable.

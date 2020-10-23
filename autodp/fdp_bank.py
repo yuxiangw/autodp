@@ -1,0 +1,77 @@
+# This module implements f-DP function templates for various mechanisms
+# Note that f-DP is equivalent to the family of (eps,delta)-DP described by the functions
+#  delta(eps) or eps(delta), generic conversion is available from the converter module
+# however it is numerically better if we implement and support cases when fdp is natural
+
+import numpy as np
+from scipy.stats import norm
+
+
+def fDP_gaussian(params, fpr):
+    """
+    :param params:
+        'sigma' --- is the normalized noise level: std divided by global L2 sensitivity
+    :param fpr: False positive rate --- input to the fDP function
+    :return: Evaluation of the fnr lower bound supported by the gaussian mechanism
+    """
+    sigma = params['sigma']
+    # assert(sigma > 0)
+    assert(sigma >= 0)
+    if sigma == 0:
+        return 0
+    else:
+        return norm.cdf(norm.ppf(1-fpr)-1/sigma)
+
+
+def fdp_grad_gaussian(params,fpr):
+    """
+    :param params:
+        'sigma' --- is the normalized noise level: std divided by global L2 sensitivity
+    :param fpr: False positive rate --- input to the fDP function
+    :return: Evaluation of derivative of the Tradeoff function at input fpr
+    """
+    sigma = params['sigma']
+    # assert(sigma > 0)
+    assert(sigma >= 0)
+    if sigma == 0:
+        return 0
+    else:
+        return -norm.pdf(norm.ppf(1-fpr)-1/sigma)/norm.pdf(norm.ppf(1-fpr))
+
+def log_one_minus_fdp_gaussian(params, logfpr):
+    """
+    :param params:
+        'sigma' --- is the normalized noise level: std divided by global L2 sensitivity
+    :param logfpr: log of False positive rate --- input to the fDP function
+    :return: log(1-f(x)).
+    """
+    sigma = params['sigma']
+    # assert(sigma > 0)
+    assert(sigma >= 0)
+    if sigma == 0:
+        return 0
+    else:
+        return norm.logsf(norm.ppf(1-np.exp(logfpr))-1/sigma)
+
+
+def log_neg_fdp_grad_gaussian(params, logfpr):
+    """
+    :param params:
+        'sigma' --- is the normalized noise level: std divided by global L2 sensitivity
+    :param logfpr: log of False positive rate --- input to the fDP function
+    :return: log(-partial f(x))
+    """
+    sigma = params['sigma']
+    # assert(sigma > 0)
+    assert(sigma >= 0)
+    if sigma == 0:
+        return 0
+    else:
+        if np.isneginf(logfpr):  # == 0:
+            return np.inf, np.inf
+        elif logfpr == 0:  #fpr == 1:
+            return -np.inf, -np.inf
+        else:
+            grad = -(norm.ppf(1 - np.exp(logfpr))
+                     - 1 / sigma) ** 2 / 2 + (norm.ppf(1 - np.exp(logfpr))) ** 2 / 2
+            return grad, grad
