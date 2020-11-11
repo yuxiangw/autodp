@@ -291,6 +291,89 @@ def pRDP_diag_gaussian(params, alpha):
                 (np.sum(np.log(sigma)) - extrapolate(np.sum(np.log(sigma2)), np.sum(np.log(sigma1)))))
 
 
+
+def RDP_svt_laplace(params, alpha):
+    """
+    Laplace-SVT (via RDP), used in NeurIPS-20
+    :param b is the noise scale for rho
+    :param params:
+    :param alpha:
+    :return:
+    """
+    b = params['b']
+    k = params['k']  # the algorithm stops either k is achieved or c is achieved
+    c = max(params['c'], 1)
+
+    alpha = 1.0 * alpha
+    if alpha <= 1:
+        eps_1 = (1 / b + np.exp(-1 / b) - 1)
+    elif np.isinf(alpha):
+        eps_1 = 1 / b
+    else:  # alpha > 1
+        eps_1 = utils.stable_logsumexp_two((alpha - 1.0) / b + np.log(alpha / (2.0 * alpha - 1)),
+                                           -1.0 * alpha / b + np.log((alpha - 1.0) / (2.0 * alpha - 1))) / (alpha - 1)
+
+    eps_2 = 1 / b  # infinity rdp on nu
+    c_log_n_c = c * np.log(k / c)
+    tilde_eps = eps_2 * (c + 1)  # eps_infinity
+    ret_rdp = min(c * eps_2 + eps_1, c_log_n_c * 1.0 / (alpha - 1) + eps_1 * (c + 1))
+    ret_rdp = min(ret_rdp, 0.5 * alpha * tilde_eps ** 2)
+    if np.isinf(alpha) or alpha == 1:
+        return ret_rdp
+    # The following is sinh-based method
+    tilde_eps = eps_2 * (c + 1)
+    cdp_bound = np.sinh(alpha * tilde_eps) - np.sinh((alpha - 1) * tilde_eps)
+    cdp_bound = cdp_bound / np.sinh(tilde_eps)
+    cdp_bound = 1.0 / (alpha - 1) * np.log(cdp_bound)
+    return min(ret_rdp, cdp_bound)
+
+
+def RDP_gaussian_svt_cgreater1(params, alpha):
+    """
+        This is for gaussian-svt with c>1
+        k is the maximum length before svt stops
+        :param params:
+        :param alpha:
+        :return:
+        """
+    sigma = params['sigma']
+    c = max(params['c'], 1)
+    k = params['k']  # the algorithm stops either k is achieved or c is achieved
+    rdp_rho = 0.5 / (sigma ** 2) * alpha
+    c_log_n_c = c * np.log(k / c)
+    ret_rdp = c_log_n_c * 1.0 / (alpha - 1) + rdp_rho * (c + 1)
+    return ret_rdp
+
+
+def RDP_gaussian_svt_c1(params, alpha):
+    """
+    This is for gaussian-svt with c=1
+    k is the maximum length before svt stops
+    :param params:
+    :param alpha:
+    :return:
+    """
+    sigma = params['sigma']
+    k = params['k']
+    margin = params['margin']
+    c = 1
+
+
+    rdp_rho = 0.5 / (sigma ** 2) * alpha
+
+    ret_rdp = np.log(k) / (alpha - 1) + rdp_rho * 2
+    if alpha == 1:
+        return ret_rdp * c
+    ################ Implement corollary 15 in NeurIPS-20
+    inside_part = np.log(2 * np.sqrt(3) * math.pi * (1 + 9 * margin ** 2 / (sigma ** 2)))
+    moment_term = utils.stable_logsumexp_two(0, inside_part + margin ** 2 * 1.0 / (sigma ** 2))
+    moment_term = moment_term / (2.0 * (alpha - 1))
+    moment_based = moment_term + rdp_rho * 2
+
+    return min(moment_based, ret_rdp) * c
+
+
+
 def RDP_pureDP(params,alpha):
     """
     This function generically converts pure DP to Renyi DP.
