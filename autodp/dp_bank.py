@@ -83,6 +83,38 @@ def get_eps_ana_gaussian(sigma, delta):
     else:
         return None
 
+def eps_generalized_gaussian(x, sigma, delta,k, c, c_tilde):
+    """
+    submodule for generalized SVT with Gaussian noise
+    we want to partition c into [c/c'] parts, each part using (k choose c')
+    need to check whether (k choose c') > log(1/delta')
+    k is the maximam number of queries to answer for each chunk
+    x is log delta for each chunk, it needs to be negative
+    :param x:
+    :param sigma:
+    :param delta:
+    :return:
+    """
+    acct = dp_acct.DP_acct()
+    per_delta = np.exp(x) # per_delta for each c' chunk
+    coeff = comb(k,c_tilde)
+    assert per_delta < 1.0/(coeff)
+    #compute the eps per step with 1/(sigma_1**2) + sqrt(2/simga_1**2 *(log k + log(1/epr_delta)))
+    # compose eps for each chunk
+    while c:
+        if c>= c_tilde:
+            c = c - c_tilde
+        else:
+            # the remaining part c // c_tilde
+            c = 0
+            c_tilde = c
+            coeff = comb(k, c_tilde)
+        per_eps = (1.0+c_tilde) / (2*sigma ** 2) + np.sqrt((1.0 +c_tilde) / (2*sigma ** 2) * (np.log(coeff) - x))
+        acct.update_DPlosses(per_eps, per_delta)
+
+    compose_eps = acct.get_eps(delta)
+    return compose_eps
+
 
 def get_eps_laplace(b,delta):
     assert(delta >= 0)

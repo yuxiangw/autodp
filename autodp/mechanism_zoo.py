@@ -6,7 +6,7 @@ import math
 
 from autodp.autodp_core import Mechanism
 from autodp import rdp_bank, dp_bank, fdp_bank, utils
-
+from autodp import transformer_zoo
 
 from scipy.optimize import minimize_scalar
 
@@ -61,19 +61,54 @@ class ExactGaussianMechanism(Mechanism):
     """
     The Gaussian mechanism to use in practice with tight direct computation of everything
     """
-    def __init__(self, sigma, name='Gaussian'):
+    def __init__(self, sigma=None, name='Gaussian'):
         # the sigma parameter is the std of the noise divide by the l2 sensitivity
         Mechanism.__init__(self)
 
         self.name = name # When composing
         self.params = {'sigma': sigma} # This will be useful for the Calibrator
-
         self.delta0 = 0
-        new_rdp = lambda x: rdp_bank.RDP_gaussian({'sigma': sigma}, x)
-        self.propagate_updates(new_rdp, 'RDP')
-        # Overwrite the approxDP and fDP with their direct computation
-        self.approxDP = lambda x: dp_bank.get_eps_ana_gaussian(sigma, x)
-        self.fDP = lambda x: fdp_bank.fDP_gaussian({'sigma': sigma}, x)
+        if sigma is not None:
+            new_rdp = lambda x: rdp_bank.RDP_gaussian({'sigma': sigma}, x)
+            self.propagate_updates(new_rdp, 'RDP')
+            # Overwrite the approxDP and fDP with their direct computation
+            self.approxDP = lambda x: dp_bank.get_eps_ana_gaussian(sigma, x)
+            self.fDP = lambda x: fdp_bank.fDP_gaussian({'sigma': sigma}, x)
+
+
+class LaplaceMechanism(Mechanism):
+    """
+    param params:
+    'b' --- is the is the ratio of the scale parameter and L1 sensitivity
+    """
+    def __init__(self, b=None, name='Laplace'):
+
+        Mechanism.__init__(self)
+
+        self.name = name
+        self.params = {'b': b} # This will be useful for the Calibrator
+        self.delta0 = 0
+        if b is not None:
+            new_rdp = lambda x: rdp_bank.RDP_laplace({'b': b}, x)
+            self.propagate_updates(new_rdp, 'RDP')
+
+
+class RandresponseMechanism(Mechanism):
+
+    """
+        param params:
+        'p' --- is the Bernoulli probability p of outputting the truth.
+        """
+
+    def __init__(self, p=None, name='Randresponse'):
+        Mechanism.__init__(self)
+
+        self.name = name
+        self.params = {'p': p}  # This will be useful for the Calibrator
+        self.delta0 = 0
+        if p is not None:
+            new_rdp = lambda x: rdp_bank.RDP_randresponse({'p': p}, x)
+            self.propagate_updates(new_rdp, 'RDP')
 
 
 class PureDP_Mechanism(Mechanism):
@@ -97,6 +132,124 @@ class PureDP_Mechanism(Mechanism):
 
         #     self.propagate_updates(new_rdp, 'RDP')
 
+
+
+class SubsampleGaussianMechanism(Mechanism):
+    """
+    This one is used as an example for calibrator with subsampled Gaussian mechanism
+    """
+    def __init__(self,params,name='SubsampleGaussian'):
+        Mechanism.__init__(self)
+        self.name=name
+        self.params={'prob':params['prob'],'sigma':params['sigma'],'coeff':params['coeff']}
+        # create such a mechanism as in previously
+        subsample = transformer_zoo.AmplificationBySampling()  # by default this is using poisson sampling
+        mech = GaussianMechanism(sigma=params['sigma'])
+
+        # Create subsampled Gaussian mechanism
+        SubsampledGaussian_mech = subsample(mech, params['prob'], improved_bound_flag=True)
+
+        # Now run this for niter iterations
+        compose = transformer_zoo.Composition()
+        mech = compose([SubsampledGaussian_mech], [params['coeff']])
+
+        # Now we get it and let's extract the RDP function and assign it to the current mech being constructed
+        rdp_total = mech.RenyiDP
+        self.propagate_updates(rdp_total, type_of_update='RDP')
+
+
+class ComposedGaussianMechanism(Mechanism):
+    """
+    This one is used as an example for calibrator with composed Gaussian mechanism
+    """
+    def __init__(self,params,name='SubsampleGaussian'):
+        Mechanism.__init__(self)
+        self.name=name
+        self.params={'sigma':params['sigma'],'coeff':params['coeff']}
+        # create such a mechanism as in previously
+
+        mech = GaussianMechanism(sigma=params['sigma'])
+        # Now run this for coeff iterations
+        compose = transformer_zoo.Composition()
+        mech = compose([mech], [params['coeff']])
+
+        # Now we get it and let's extract the RDP function and assign it to the current mech being constructed
+        rdp_total = mech.RenyiDP
+        self.propagate_updates(rdp_total, type_of_update='RDP')
+
+
+
+class NoisyScreenMechanism(Mechanism):
+    """
+    The data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN (CPVR-20))
+    This mechanism is also used in Figure 2(a) in NIPS-20
+    """
+    def __init__(self,params,name='NoisyScreen'):
+        Mechanism.__init__(self)
+        self.name=name
+        self.params={'logp':params['logp'],'logq':params['logq']}
+        # create such a mechanism as in previously
+
+        new_rdp = lambda x: rdp_bank.RDP_noisy_screen({'logp': params['logp'], 'logq': params['logq']}, x)
+        self.propagate_updates(new_rdp, 'RDP')
+
+
+class GaussianSVT_Mechanism(Mechanism):
+    """
+    Gaussian SVT  proposed by NeurIPS-20
+    parameters k and sigma
+    k is the maximum length before the algorithm stops
+    rdp_c_1 = True indicates we use RDP-based Gaussian-SVT with c=1, else c>1
+
+    """
+    def __init__(self,params,name='GaussianSVT', rdp_c_1=True):
+        Mechanism.__init__(self)
+        self.name=name
+        if rdp_c_1 == True:
+            self.name = name + 'c_1'
+            self.params = {'sigma': params['sigma'], 'k': params['k'], 'margin':params['margin']}
+            new_rdp = lambda x: rdp_bank.RDP_gaussian_svt_c1(self.params, x)
+        else:
+            self.name = name + 'c>1'
+            self.params = {'sigma':params['sigma'],'k':params['k'], 'c':params['c']}
+            new_rdp = lambda x: rdp_bank.RDP_gaussian_svt_cgreater1(self.params, x)
+        self.propagate_updates(new_rdp, 'RDP')
+
+class LaplaceSVT_Mechanism(Mechanism):
+    """
+    Laplace SVT (c>=1) used in NeurIPS-20
+    parameters k and sigma
+    k is the maximum length before the algorithm stops
+    We provide the RDP implementation and pure-DP implementation
+    """
+    def __init__(self,params,name='GaussianSVT'):
+        Mechanism.__init__(self)
+        self.name=name
+        self.params={'b':params['b'],'k':params['k'], 'c':params['c']}
+
+        new_rdp = lambda x: rdp_bank.RDP_svt_laplace(self.params, x)
+        self.propagate_updates(new_rdp, 'RDP')
+
+
+class StageWiseMechanism(Mechanism):
+    """
+    The StageWise generalized SVT is proposed by Zhu et.al., NeurIPS-20
+    used for Sparse vector technique with Gaussian Noise
+
+    c is the number of tops (composition)
+    k is the maximum limit for each chunk, e.g., the algorithm restarts whenever it encounters a top or reaches k limit.
+    """
+    def __init__(self, params=None,approxDP_off=False, name='StageWiseMechanism'):
+        # the sigma parameter is the std of the noise divide by the l2 sensitivity
+        Mechanism.__init__(self)
+
+        self.name = name # When composing
+        self.params = {'sigma': params['sigma'], 'k':params['k'], 'c':params['c']}
+        self.delta0 = 0
+
+        if not approxDP_off:  # Direct implementation of approxDP
+            new_approxdp = lambda x: dp_bank.get_generalized_gaussian(params, x)
+            self.propagate_updates(new_approxdp, 'approxDP_func')
 
 
 # # Example 1: Short implementation of noisy gradient descent mechanism as a composition of GMs
