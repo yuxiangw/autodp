@@ -688,6 +688,8 @@ class anaRDPacct:
                     return np.inf
                 if prob == 1.0:
                     return func(x)
+                if prob == 0:
+                    return 0
 
                 epsinf, tmp = subsample_epsdelta(func(np.inf),0,prob)
 
@@ -786,6 +788,10 @@ class anaRDPacct:
 
 
             def subsample_func(x): # linear interpolation upper bound
+                if prob == 0:
+                    return 0
+                if prob == 1.0:
+                    return func(x)
                 epsinf, tmp = subsample_epsdelta(func(np.inf),0,prob)
 
                 if np.isinf(x):
