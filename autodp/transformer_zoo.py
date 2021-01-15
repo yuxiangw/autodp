@@ -152,8 +152,10 @@ class AmplificationBySampling(Transformer):
             # TODO: implement a transformer that convert add/remove to replace_one notion of DP.
             newmech.replace_one = True
 
-
-        new_approxDP = lambda delta: np.log(1 + prob*(np.exp(mechanism.approxDP(delta/prob))-1))
+        if prob == 0:
+            new_approxDP = lambda delta:0
+        else:
+            new_approxDP = lambda delta: np.log(1 + prob*(np.exp(mechanism.approxDP(delta/prob))-1))
         newmech.approxDP = new_approxDP
 
         acct = rdp_acct.anaRDPacct()
