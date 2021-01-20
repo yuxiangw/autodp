@@ -645,7 +645,7 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             else:
                 return results.x
         else:
-            raise RuntimeError("Optimal parameters not found: " + results.message)
+            raise RuntimeError(f"'find_logx' fails to find the tangent line: {results.message}")
 
     def approxdp(delta):
         logx = find_logx(delta)
@@ -754,7 +754,7 @@ def numerical_inverse(f, bounds=None):
         if results.success:
             return results.x
         else:
-            raise RuntimeError("Optimal parameters not found: " + results.message)
+            raise RuntimeError(f"Failed to invert function {f} at {y}: {results.message}")
 
     return inv_f
 
@@ -779,7 +779,7 @@ def conjugate(f,tol=1e-10):
             return -(results.fun + tol)
             # output an upper bound
         else:
-            raise RuntimeError("Optimal parameters not found: " + results.message)
+            raise RuntimeError(f"Failed to conjugate function {f} at {x}: {results.message}")
     return fstar
 
 

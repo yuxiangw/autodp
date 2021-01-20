@@ -42,8 +42,7 @@ class eps_delta_calibrator(Calibrator):
                 mech = mech_class(results.x)
             return mech
         else:
-            print('Warning: eps_delta_calibrator fails to find a parameter')
-            return None
+            raise RuntimeError(f"eps_delta_calibrator fails to find a parameter: {results.message}")
 
 
 class generalized_eps_delta_calibrator(Calibrator):
@@ -88,8 +87,7 @@ class generalized_eps_delta_calibrator(Calibrator):
                 mech = mech_class(params,name=name)
             return mech
         else:
-            print('Warning: eps_delta_calibrator fails to find a parameter')
-            return None
+            raise RuntimeError(f"eps_delta_calibrator fails to find a parameter: {results.message}")
 
 
 

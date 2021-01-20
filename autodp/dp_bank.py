@@ -82,7 +82,7 @@ def get_eps_ana_gaussian(sigma, delta):
     if results.converged:
         return results.root
     else:
-        return None
+        raise RuntimeError(f"Failed to find epsilon: {results.flag}")
 
 def eps_generalized_gaussian(x, sigma, delta,k, c, c_tilde):
     """

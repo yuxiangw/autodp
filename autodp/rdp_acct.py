@@ -426,7 +426,7 @@ class anaRDPacct:
                 if results.success:
                     return results.fun
                 else:
-                    return None
+                    raise RuntimeError(f"Optimal RDP order not found: {results.message}")
                 #return fun(bestint)
 
             if bestint == 0:
@@ -445,7 +445,7 @@ class anaRDPacct:
                 # There are cases when certain \delta is not feasible.
                 # For example, let p and q be uniform the privacy R.V. is either 0 or \infty and unless all \infty
                 # events are taken cared of by \delta, \epsilon cannot be < \infty
-                return -1
+                return np.inf #-1 # TODO(mllm): should this be \infty instead?
 
     def compose_mechanism(self, func, coeff=1.0):
         self.flag = False
