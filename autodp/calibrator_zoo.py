@@ -10,7 +10,7 @@ All calibrators inherit the autodp_core.calibrator
 
 from math import exp, sqrt
 from scipy.special import erf
-from autodp.autodp_core import Calibrator
+from autodp.autodp.autodp_core import Calibrator
 from scipy.optimize import minimize_scalar, root_scalar
 
 class eps_delta_calibrator(Calibrator):

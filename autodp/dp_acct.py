@@ -6,7 +6,7 @@ This file implements the classical DP accountant by Kairouz, Oh, Viswanath
 import numpy as np
 from scipy.optimize import minimize_scalar
 
-from autodp import utils
+from autodp.autodp import utils
 
 import math
 

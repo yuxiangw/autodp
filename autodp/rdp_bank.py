@@ -11,7 +11,7 @@ the per-instance RDP associated with two given data sets.
 
 import numpy as np
 import math
-from autodp import utils
+from autodp.autodp import utils
 
 
 def _log1mexp(x):

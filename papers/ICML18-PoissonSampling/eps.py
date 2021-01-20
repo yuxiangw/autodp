@@ -3,7 +3,7 @@
 
 import math
 import time
-from autodp import rdp_acct, rdp_bank, dp_acct,privacy_calibrator,utils
+from autodp.autodp import rdp_acct, rdp_bank, dp_acct,privacy_calibrator,utils
 import numpy as np
 from scipy.optimize import minimize_scalar
 import pickle

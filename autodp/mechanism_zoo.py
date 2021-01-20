@@ -4,9 +4,9 @@
 """
 import math
 
-from autodp.autodp_core import Mechanism
-from autodp import rdp_bank, dp_bank, fdp_bank, utils
-from autodp import transformer_zoo
+from autodp.autodp.autodp_core import Mechanism
+from autodp.autodp import rdp_bank, dp_bank, fdp_bank, utils
+from autodp.autodp import transformer_zoo
 
 from scipy.optimize import minimize_scalar
 
@@ -248,7 +248,7 @@ class StageWiseMechanism(Mechanism):
         self.delta0 = 0
 
         if not approxDP_off:  # Direct implementation of approxDP
-            new_approxdp = lambda x: dp_bank.get_generalized_gaussian(params, x)
+            new_approxdp = lambda x: dp_bank.eps_generalized_gaussian(x, **params)
             self.propagate_updates(new_approxdp, 'approxDP_func')
 
 

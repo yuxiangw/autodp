@@ -1,11 +1,11 @@
 # Example of a specific transformer that outputs the composition
 
 
-from autodp.autodp_core import Mechanism, Transformer
+from autodp.autodp.autodp_core import Mechanism, Transformer
 import math
 import numpy as np
 
-from autodp import mechanism_zoo, rdp_acct
+from autodp.autodp import mechanism_zoo, rdp_acct
 
 
 # The generic composition class

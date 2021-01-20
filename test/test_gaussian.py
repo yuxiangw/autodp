@@ -1,6 +1,6 @@
 
-from autodp.mechanism_zoo import ExactGaussianMechanism
-from autodp.transformer_zoo import Composition, ComposeGaussian
+from autodp.autodp.mechanism_zoo import ExactGaussianMechanism
+from autodp.autodp.transformer_zoo import Composition, ComposeGaussian
 import matplotlib.pyplot as plt
 
 sigma1 = 5.0

@@ -6,7 +6,7 @@ from math import exp, sqrt
 from scipy.special import erf
 from scipy.optimize import brentq
 
-from autodp import rdp_acct, rdp_bank, dp_acct, dp_bank
+from autodp.autodp import rdp_acct, rdp_bank, dp_acct, dp_bank
 
 
 # Subsampling lemma and its inverse
@@ -95,7 +95,7 @@ def RDP_mech(rdp_func, eps, delta, param_name, params, bounds=[0,np.inf],k=1,pro
         count = count + 1
         if count >=maxiter:
             # infeasible
-            return None
+            raise ValueError('Infeasible privacy parameters for given RDP function and parameter bounds.')
 
     root = brentq(func, a, b)
 

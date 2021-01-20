@@ -1,15 +1,15 @@
 import numpy as np
 import math
 import scipy
-from autodp import rdp_bank, dp_bank, fdp_bank, utils
-from autodp.mechanism_zoo import LaplaceMechanism, LaplaceSVT_Mechanism,StageWiseMechanism
-from autodp.transformer_zoo import Composition
+from autodp.autodp import rdp_bank, dp_bank, fdp_bank, utils
+from autodp.autodp.mechanism_zoo import LaplaceMechanism, LaplaceSVT_Mechanism,StageWiseMechanism
+from autodp.autodp.transformer_zoo import Composition
 import matplotlib.pyplot as plt
 from scipy.stats import norm, laplace
 from scipy.special import comb
 import matplotlib.font_manager as fm
-from autodp.mechanism_zoo import ExactGaussianMechanism, PureDP_Mechanism,SubsampleGaussianMechanism, GaussianMechanism, ComposedGaussianMechanism,GaussianSVT_Mechanism, NoisyScreenMechanism
-from autodp.transformer_zoo import Composition, AmplificationBySampling
+from autodp.autodp.mechanism_zoo import ExactGaussianMechanism, PureDP_Mechanism,SubsampleGaussianMechanism, GaussianMechanism, ComposedGaussianMechanism,GaussianSVT_Mechanism, NoisyScreenMechanism
+from autodp.autodp.transformer_zoo import Composition, AmplificationBySampling
 
 
 """

@@ -3,9 +3,9 @@
 
 
 import numpy as np
-from autodp import utils
+from autodp.autodp import utils
 import math
-from autodp import rdp_bank
+from autodp.autodp import rdp_bank
 from scipy.optimize import minimize_scalar, root_scalar
 
 
@@ -641,12 +641,11 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
                                   options={'xatol': 1e-6, 'maxiter': 500, 'disp': 0})
         if results.success:
             if abs(results.fun) > 1e-4:
-                print("Warning: 'find_logx' fails to find the tangent line.")
-                return None
+                raise RuntimeError("'find_logx' fails to find the tangent line.")
             else:
                 return results.x
         else:
-            return None
+            raise RuntimeError("Optimal parameters not found: " + results.message)
 
     def approxdp(delta):
         logx = find_logx(delta)
@@ -739,7 +738,7 @@ def numerical_inverse(f, bounds=None):
     def inv_f(y):
         if bounds:
             if y > bounds[1] or y < bounds[0]:
-                return None
+                raise ValueError(f'y value {y} is out of bounds [{bounds[0]},{bounds[1]}].')
 
         def fun(x):
             return f(x) - y
@@ -755,7 +754,7 @@ def numerical_inverse(f, bounds=None):
         if results.success:
             return results.x
         else:
-            return None
+            raise RuntimeError("Optimal parameters not found: " + results.message)
 
     return inv_f
 
@@ -780,7 +779,7 @@ def conjugate(f,tol=1e-10):
             return -(results.fun + tol)
             # output an upper bound
         else:
-            return None
+            raise RuntimeError("Optimal parameters not found: " + results.message)
     return fstar
 
 

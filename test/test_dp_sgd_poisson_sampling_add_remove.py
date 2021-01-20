@@ -1,5 +1,5 @@
-from autodp.mechanism_zoo import ExactGaussianMechanism
-from autodp.transformer_zoo import Composition, AmplificationBySampling
+from autodp.autodp.mechanism_zoo import ExactGaussianMechanism
+from autodp.autodp.transformer_zoo import Composition, AmplificationBySampling
 
 from absl.testing import absltest
 from absl.testing import parameterized

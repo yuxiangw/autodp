@@ -8,7 +8,8 @@ In some cases, given a fixed randomized algorithm on a fixed data set, it calcul
 """
 
 import numpy as np
-from autodp import rdp_acct, rdp_bank, utils
+from autodp.autodp import dp_acct, rdp_acct, rdp_bank, utils
+from scipy.special import comb
 from scipy.stats import norm
 from scipy.optimize import minimize_scalar, root_scalar
 
