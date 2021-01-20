@@ -22,8 +22,8 @@ import sys
 sys.path.append('..')
 import autodp
 
-from autodp.autodp import utils, rdp_bank
-from autodp.autodp.privacy_calibrator import subsample_epsdelta
+from autodp import utils, rdp_bank
+from autodp.privacy_calibrator import subsample_epsdelta
 import scipy
 import math
 

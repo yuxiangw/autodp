@@ -4,9 +4,9 @@
 """
 import math
 
-from autodp.autodp.autodp_core import Mechanism
-from autodp.autodp import rdp_bank, dp_bank, fdp_bank, utils
-from autodp.autodp import transformer_zoo
+from autodp.autodp_core import Mechanism
+from autodp import rdp_bank, dp_bank, fdp_bank, utils
+from autodp import transformer_zoo
 
 from scipy.optimize import minimize_scalar
 

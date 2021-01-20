@@ -3,9 +3,9 @@
 
 
 import numpy as np
-from autodp.autodp import utils
+from autodp import utils
 import math
-from autodp.autodp import rdp_bank
+from autodp import rdp_bank
 from scipy.optimize import minimize_scalar, root_scalar
 
 

@@ -16,7 +16,7 @@ Calibrator --- A `calibrator' takes a mechanism with parameters (e.g. noise leve
 """
 
 import numpy as np
-from autodp.autodp import converter
+from autodp import converter
 
 
 class Mechanism():
