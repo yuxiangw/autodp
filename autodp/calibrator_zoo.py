@@ -4,13 +4,13 @@ a pre-defined privacy guarantee.
 
 For instance, we could calibrate noise to sensitivity in Laplace mechanism to achieve any given \eps
 
-All calibrators inherit the autodp_core.calibrator
+All calibrators inherit the autodp.autodp_core.calibrator
 
 """
 
 from math import exp, sqrt
 from scipy.special import erf
-from autodp_core import Calibrator
+from autodp.autodp_core import Calibrator
 from scipy.optimize import minimize_scalar, root_scalar
 
 class eps_delta_calibrator(Calibrator):

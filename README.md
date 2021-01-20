@@ -4,7 +4,7 @@
 
 ### New features comes with the new API
 
-1. Object oriented design:  check out ```autodp_core.py```
+1. Object oriented design:  check out ```autodp.autodp_core.py```
 2. Zoos are open with many private animals:  ```mechanism_zoo```,  ```transformer_zoo```, ```calibrator_zoo```. 
 2. Added support for f-DP and privacy profile alongside RDP (they all function under the hood, so that you don't need to know how they work.)
 3. Stronger RDP to (eps,delta)-DP conversion.

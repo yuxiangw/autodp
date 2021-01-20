@@ -4,7 +4,7 @@
 """
 import math
 
-from autodp_core import Mechanism
+from autodp.autodp_core import Mechanism
 from autodp import rdp_bank, dp_bank, fdp_bank, utils
 from autodp import transformer_zoo
 

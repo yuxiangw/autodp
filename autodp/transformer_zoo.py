@@ -1,7 +1,7 @@
 # Example of a specific transformer that outputs the composition
 
 
-from autodp_core import Mechanism, Transformer
+from autodp.autodp_core import Mechanism, Transformer
 import math
 import numpy as np
 
