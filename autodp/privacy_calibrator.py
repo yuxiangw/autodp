@@ -29,7 +29,8 @@ def subsample_epsdelta(eps,delta,prob):
     See the proof of (b)
 
     """
-
+    if prob == 0:
+        return 0,0
     return np.log(1+prob*(np.exp(eps)-1)), prob*delta
 
 
