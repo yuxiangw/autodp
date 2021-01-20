@@ -1,6 +1,6 @@
-from autodp.autodp.mechanism_zoo import PureDP_Mechanism
+from autodp.mechanism_zoo import PureDP_Mechanism
 
-from autodp.autodp.transformer_zoo import Composition
+from autodp.transformer_zoo import Composition
 
 # Example: pure DP mechanism and composition of it
 

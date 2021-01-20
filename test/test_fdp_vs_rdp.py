@@ -1,5 +1,5 @@
 import numpy as np
-from autodp.autodp.mechanism_zoo import GaussianMechanism, PureDP_Mechanism
+from autodp.mechanism_zoo import GaussianMechanism, PureDP_Mechanism
 
 # Example 1: Gaussian mechanism
 

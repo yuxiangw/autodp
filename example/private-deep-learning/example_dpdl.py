@@ -21,7 +21,7 @@
 
 
 # import packages for DP
-from autodp.autodp import rdp_bank, rdp_acct
+from autodp import rdp_bank, rdp_acct
 
 # import packages needed for deep learning
 import mxnet as mx

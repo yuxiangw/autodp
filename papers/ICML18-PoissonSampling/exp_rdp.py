@@ -2,7 +2,7 @@
 
 import math
 
-from autodp.autodp import rdp_acct, rdp_bank, dp_acct, privacy_calibrator, utils
+from autodp import rdp_acct, rdp_bank, dp_acct, privacy_calibrator, utils
 
 from scipy.optimize import minimize_scalar
 import scipy.special

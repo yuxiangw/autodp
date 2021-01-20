@@ -1,6 +1,6 @@
 
-from autodp.autodp.mechanism_zoo import ExactGaussianMechanism, PureDP_Mechanism
-from autodp.autodp.transformer_zoo import Composition, AmplificationBySampling
+from autodp.mechanism_zoo import ExactGaussianMechanism, PureDP_Mechanism
+from autodp.transformer_zoo import Composition, AmplificationBySampling
 import matplotlib.pyplot as plt
 
 sigma1 = 5.0

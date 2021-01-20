@@ -1,9 +1,9 @@
 import sys
 import os
-from autodp.autodp.calibrator_zoo import eps_delta_calibrator,generalized_eps_delta_calibrator, ana_gaussian_calibrator
-from autodp.autodp import rdp_bank
-from autodp.autodp.mechanism_zoo import ExactGaussianMechanism, PureDP_Mechanism,SubsampleGaussianMechanism, GaussianMechanism, ComposedGaussianMechanism, LaplaceMechanism
-from autodp.autodp.transformer_zoo import Composition, AmplificationBySampling
+from autodp.calibrator_zoo import eps_delta_calibrator,generalized_eps_delta_calibrator, ana_gaussian_calibrator
+from autodp import rdp_bank
+from autodp.mechanism_zoo import ExactGaussianMechanism, PureDP_Mechanism,SubsampleGaussianMechanism, GaussianMechanism, ComposedGaussianMechanism, LaplaceMechanism
+from autodp.transformer_zoo import Composition, AmplificationBySampling
 
 """
 Try calibrating noise to privacy budgets.
