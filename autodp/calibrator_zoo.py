@@ -4,7 +4,7 @@ a pre-defined privacy guarantee.
 
 For instance, we could calibrate noise to sensitivity in Laplace mechanism to achieve any given \eps
 
-All calibrators inherit the autodp.autodp_core.calibrator
+All calibrators inherit the autodp_core.calibrator
 
 """
 
