@@ -96,7 +96,7 @@ def RDP_mech(rdp_func, eps, delta, param_name, params, bounds=[0,np.inf],k=1,pro
         count = count + 1
         if count >=maxiter:
             # infeasible
-            return None
+            raise ValueError('Infeasible privacy parameters for given RDP function and parameter bounds.')
 
     root = brentq(func, a, b)
 
