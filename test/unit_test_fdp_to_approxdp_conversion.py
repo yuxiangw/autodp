@@ -6,7 +6,7 @@ import numpy as np
 from absl.testing import absltest
 from absl.testing import parameterized
 
-params = [0.05, 0.1, 0.2, 0.5,1.0, 2.0, 5.0, 10.0]
+params = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]
 
 
 def _fdp_conversion(sigma):
@@ -32,7 +32,7 @@ def _fdp_conversion(sigma):
     return rel_diff
 
 
-_fdp_conversion(0.05)
+_fdp_conversion(1.0)
 
 class Test_approxDP2fDP_Conversion(parameterized.TestCase):
 

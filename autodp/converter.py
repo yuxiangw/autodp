@@ -637,15 +637,23 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             else:
                 return min(abs(high),abs(low))
 
+        def normal_equation_loglogx(loglogx):
+            logx = np.exp(loglogx)
+            return normal_equation(logx)
+
         # find x such that y = 1-\delta
         tmp = fun1(np.log(1 - delta))
-        bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
-        #bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
+        if abs(tmp) < 1e-5:
+            bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
+        else:
+            bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
         #results = minimize_scalar(normal_equation, bounds=[-np.inf,0], bracket=[-1,-2])
         results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
-                                  options={'xatol': 1e-6, 'maxiter': 500, 'disp': 0})
+                                  options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
         if results.success:
-            if abs(results.fun) > 1e-4:
+            if abs(results.fun) > 1e-4 and abs(results.x)>1e-10:
+                # This means that we hit xatol (x is close to 0, but
+                # the function value is not close to 0) In this case let's do an even larger search.
                 raise RuntimeError("'find_logx' fails to find the tangent line.")
             else:
                 return results.x

@@ -94,7 +94,7 @@ def stable_norm_ppf_one_minus_x(logx):
     :param logx:
     :return: ppf(1-e^logx)
     """
-    if logx < -20:
+    if logx < -30:
         # asymptotic approximation
         norm_ppf_one_minus_x = np.sqrt(-2 * logx - np.log(-2*logx) - np.log(2*np.pi))
     # # if logx < -10:
