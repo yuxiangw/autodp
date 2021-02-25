@@ -5,6 +5,7 @@
 
 import numpy as np
 from scipy.stats import norm
+from autodp import utils
 
 
 def fDP_gaussian(params, fpr):
@@ -51,7 +52,15 @@ def log_one_minus_fdp_gaussian(params, logfpr):
     if sigma == 0:
         return 0
     else:
-        return norm.logsf(norm.ppf(1-np.exp(logfpr))-1/sigma)
+        if np.isneginf(logfpr):
+            return -np.inf
+        else:
+
+            norm_ppf_one_minus_fpr = utils.stable_norm_ppf_one_minus_x(logfpr)
+
+            return norm.logsf(norm_ppf_one_minus_fpr-1/sigma)
+
+
 
 
 def log_neg_fdp_grad_gaussian(params, logfpr):
@@ -72,6 +81,7 @@ def log_neg_fdp_grad_gaussian(params, logfpr):
         elif logfpr == 0:  #fpr == 1:
             return -np.inf, -np.inf
         else:
-            grad = -(norm.ppf(1 - np.exp(logfpr))
-                     - 1 / sigma) ** 2 / 2 + (norm.ppf(1 - np.exp(logfpr))) ** 2 / 2
+            norm_ppf_one_minus_fpr = utils.stable_norm_ppf_one_minus_x(logfpr)
+            grad = -(norm_ppf_one_minus_fpr
+                     - 1 / sigma) ** 2 / 2 + norm_ppf_one_minus_fpr ** 2 / 2
             return grad, grad

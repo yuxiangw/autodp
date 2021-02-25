@@ -599,7 +599,10 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
         def fun2(logx):
             assert(logx <= 0)
-            grad_l, grad_h = fdp_grad(np.exp(logx))
+            if np.isneginf(logx):
+                grad_l, grad_h = fdp_grad(0)
+            else:
+                grad_l, grad_h = fdp_grad(np.exp(logx))
             log_neg_grad_l = np.log(-grad_l)
             log_neg_grad_h = np.log(-grad_h)
 
@@ -635,7 +638,9 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
                 return min(abs(high),abs(low))
 
         # find x such that y = 1-\delta
-        bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
+        tmp = fun1(np.log(1 - delta))
+        bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
+        #bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
         #results = minimize_scalar(normal_equation, bounds=[-np.inf,0], bracket=[-1,-2])
         results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
                                   options={'xatol': 1e-6, 'maxiter': 500, 'disp': 0})
@@ -648,15 +653,22 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             raise RuntimeError(f"'find_logx' fails to find the tangent line: {results.message}")
 
     def approxdp(delta):
-        logx = find_logx(delta)
-        log_one_minus_f = fun1(logx)
-        # log_neg_grad_l, log_neg_grad_h = fun2(logx)
-        s, mag = utils.stable_log_diff_exp(log_one_minus_f,np.log(delta))
-        eps = mag - logx
-        if eps < 0:
+        if delta == 0:
+            logx = -np.inf
+            log_neg_grad_l, log_neg_grad_h = fun2(logx)
+            return log_neg_grad_l
+        elif delta == 1:
             return 0.0
         else:
-            return eps
+            logx = find_logx(delta)
+            log_one_minus_f = fun1(logx)
+            # log_neg_grad_l, log_neg_grad_h = fun2(logx)
+            s, mag = utils.stable_log_diff_exp(log_one_minus_f,np.log(delta))
+            eps = mag - logx
+            if eps < 0:
+                return 0.0
+            else:
+                return eps
 
     #approxdp(1e-3)
 

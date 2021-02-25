@@ -77,8 +77,9 @@ def get_eps_ana_gaussian(sigma, delta):
             return np.inf
         else:
             return get_logdelta_ana_gaussian(sigma, x) - np.log(delta)
-    # The following by default uses the 'secant' method for finding
-    results = root_scalar(fun, x0=0, x1=5)
+
+    eps_upperbound = 1/2/sigma**2+1/sigma*np.sqrt(2*np.log(1/delta))
+    results = root_scalar(fun,bracket=[0, eps_upperbound])
     if results.converged:
         return results.root
     else:

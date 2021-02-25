@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.special import gammaln, comb
+from scipy.stats import norm
 import math
 
 def stable_logsumexp(x):
@@ -85,6 +86,22 @@ def stable_inplace_diff_in_log(vec, signs, n=-1):
         else:  # When the signs are different.
             vec[j] = stable_logsumexp_two(vec[j], vec[j + 1])
             signs[j] = signs[j + 1]
+
+def stable_norm_ppf_one_minus_x(logx):
+    """
+    This function compute the normal inverse CDF at 1-x by taking logx as an input.
+    Numerical stability has been taken into account with two levels of approximations.
+    :param logx:
+    :return: ppf(1-e^logx)
+    """
+    if logx < -20:
+        # asymptotic approximation
+        norm_ppf_one_minus_x = np.sqrt(-2 * logx - np.log(-2*logx) - np.log(2*np.pi))
+    # # if logx < -10:
+    # #     norm_ppf_one_minus_x = norm.ppf(-logx - logx ** 2 / 2 - logx ** 3 / 6)
+    else:
+        norm_ppf_one_minus_x = norm.ppf(1 - np.exp(logx))
+    return norm_ppf_one_minus_x
 
 
 def get_forward_diffs(fun, n):
