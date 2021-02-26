@@ -1,13 +1,14 @@
 # AutoDP v0.2
 
-###Module
+### Module
+
 `Module mechanism_zoo`: Libralies of popular DP mechanisms inherited from Mechanism class.
 
 `Module calibrator_zoo` Implements a number of ways to choose parameters of a mechanism to achieve a pre-defined privacy guarantee. All calibrators inherit from calibrator class.
 
 `Module transformer_zoo` Implements a number of ways to convert one or multi-mechanisms to a new mechanism. All transformers inherit from transformer class.
 
-###Classes
+### Classes
 
 `class Mechanism`: An abstract base class  describes a randomized algorithm and its privacy properties.
 
@@ -17,7 +18,7 @@
  `class Calibrator`: An abstract base class to calibrate noise (or other parameters) meet a pre-scribed privacy budget
  
 
-####Mechanism zoos
+#### Mechanism zoos
 
 
 
@@ -42,7 +43,7 @@
 |AmplificationBySampling|Supports RDP-based poisson / replace_one sampling and their improved bounds|The basic mechanism before sampling is applied and the sampling probability|Subsampled mechanism|
 
 #### Calibrator zoos
-|Calibrator|Description|Input|Output|
+|Calibrators|Description|Input|Return|
 | --- | ----------- |-----|----|
 |eps_delta_calibrator|Calibrate the noise scale for one single mechanism based on RDP |mechanism to calibrate, the privacy budget and which noise parameter to optimize over|A new mechanism with the calibrated noise parameter|
 |generalized_eps_delta_calibrator|Calibrate the noise scale for generalzied mechanisms (e.g., composed mechanisms) based on RDP|mechanism to calibrate, the privacy budget and which noise parameter to optimize over|A new mechanism with the calibrated noise parameter|
