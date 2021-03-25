@@ -1,5 +1,8 @@
 
 from setuptools import setup
+import os
+
+here = os.path.dirname(os.path.abspath(__file__))
 
 
 with open("README.md", 'r') as f:
