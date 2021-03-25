@@ -42,6 +42,5 @@ jobs:
     - name: Test the code
       run: bazel test --test_output=errors ...
 
-    # TODO: Add pytype job after addressing ninja dupbuild errors.
-    # - name: Type-Check
-    #   run: pytype -j auto
+    - name: Type-Check
+      run: pytype -j auto
