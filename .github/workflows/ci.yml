@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6]
+        python-version: [3.6, 3.7, 3.8]
 
     steps:
     # Checks-out the repository under $GITHUB_WORKSPACE, which is the CWD for
@@ -42,5 +42,6 @@ jobs:
     - name: Test the code
       run: bazel test --test_output=errors ...
 
-    - name: Type-Check
-      run: pytype -j auto
+    # TODO: Add pytype job after addressing ninja dupbuild errors.
+    # - name: Type-Check
+    #   run: pytype -j auto
