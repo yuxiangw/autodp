@@ -1,0 +1,22 @@
+load("@autodp_py_pip_deps//:requirements.bzl", "requirement")
+
+licenses(["notice"])
+
+package(default_visibility = [
+    "//visibility:public",
+])
+
+py_library(
+    name = "autodp",
+    srcs = glob(
+        [
+            "*.py",
+        ],
+    ),
+    srcs_version = "PY3",
+    deps = [
+        requirement("matplotlib"),
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
+)

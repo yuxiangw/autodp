@@ -1,0 +1,60 @@
+load("@autodp_py_pip_deps//:requirements.bzl", "requirement")
+
+licenses(["notice"])
+
+package(default_visibility = [
+    "//visibility:public",
+])
+
+py_test(
+    name = "unit_test_approxdp_to_fdp_conversion",
+    srcs = ["unit_test_approxdp_to_fdp_conversion.py"],
+    python_version = "PY3",
+    deps = [
+        "@autodp_py//autodp",
+        requirement("absl-py"),
+        requirement("matplotlib"),
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
+)
+
+py_test(
+    name = "unit_test_calibrator",
+    srcs = ["unit_test_calibrator.py"],
+    python_version = "PY3",
+    deps = [
+        "@autodp_py//autodp",
+        requirement("absl-py"),
+        requirement("matplotlib"),
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
+)
+
+py_test(
+    name = "unit_test_dp_sgd_poisson_sampling_add_remove",
+    srcs = ["unit_test_dp_sgd_poisson_sampling_add_remove.py"],
+    python_version = "PY3",
+    shard_count = 5,
+    deps = [
+        "@autodp_py//autodp",
+        requirement("absl-py"),
+        requirement("matplotlib"),
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
+)
+
+py_test(
+    name = "unit_test_fdp_to_approxdp_conversion",
+    srcs = ["unit_test_fdp_to_approxdp_conversion.py"],
+    python_version = "PY3",
+    deps = [
+        "@autodp_py//autodp",
+        requirement("absl-py"),
+        requirement("matplotlib"),
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
+)
