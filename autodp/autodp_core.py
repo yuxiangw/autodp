@@ -258,8 +258,8 @@ class Mechanism():
         return fpr_list, fnr_list
 
     # Plot RDP function
-    def plot_RDP(self, alphamax=101):
-        alpha_list = np.linspace(1, alphamax, alphamax)
+    def plot_RDP(self, alphamax=101, length=101):
+        alpha_list = np.linspace(0, alphamax, length)
         RDP_list = np.array([self.get_RDP(alpha) for alpha in alpha_list])
         return alpha_list, RDP_list
 
