@@ -109,6 +109,8 @@ class RandresponseMechanism(Mechanism):
         if p is not None:
             new_rdp = lambda x: rdp_bank.RDP_randresponse({'p': p}, x)
             self.propagate_updates(new_rdp, 'RDP')
+            approxDP = lambda x: dp_bank.get_eps_randresp_optimal(p, x)
+            self.propagate_updates(approxDP, 'approxDP_func')
 
 
 class PureDP_Mechanism(Mechanism):

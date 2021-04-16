@@ -229,7 +229,7 @@ def RDP_randresponse(params, alpha):
     # assert(alpha >= 0)
     if p == 1 or p == 0:
         return np.inf
-    if alpha <= 1:
+    if alpha == 1:
         return (2 * p - 1) * np.log(p / (1 - p))
     elif np.isinf(alpha):
         return np.abs(np.log((1.0*p/(1-p))))
