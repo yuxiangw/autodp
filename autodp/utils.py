@@ -9,10 +9,10 @@ def stable_logsumexp(x):
 
 def stable_logsumexp_two(x,y):
     a = np.maximum(x,y)
-    if np.isneginf(a):
-        return a
-    else:
-        return a + np.log(np.exp(x-a) + np.exp(y-a))
+    #if np.isneginf(a):
+    #    return a
+    #else:
+    return a + np.log(np.exp(x-a) + np.exp(y-a))
 
 def stable_log_diff_exp(x, y):
     # ensure that y > x

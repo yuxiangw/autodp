@@ -19,7 +19,7 @@ class Composition(Transformer):
         # Update the function that is callable
         self.transform = self.compose
 
-    def compose(self, mechanism_list, coeff_list, RDP_compose_only=True):
+    def compose(self, mechanism_list, coeff_list, RDP_compose_only=True, BBGHS_conversion=True, fDP_based_conversion=False):
         # Make sure that the mechanism has a unique list
         # for example, if there are two Gaussian mechanism with two different sigmas, call it
         # Gaussian1, and Gaussian2
@@ -32,7 +32,7 @@ class Composition(Transformer):
         # update the functions
         def newrdp(x):
             return sum([c * mech.RenyiDP(x) for (mech, c) in zip(mechanism_list, coeff_list)])
-        newmech.propagate_updates(newrdp, 'RDP')
+        newmech.propagate_updates(newrdp, 'RDP',  BBGHS_conversion= BBGHS_conversion, fDP_based_conversion=fDP_based_conversion)
 
         # TODO: the fDP_based_conversion sometimes fails due to undefined RDP with alpha < 1
 

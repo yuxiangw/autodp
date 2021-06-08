@@ -60,6 +60,9 @@ class Mechanism():
         def approxDP(delta):
             return np.inf
 
+        def approx_delta(eps):
+            return 1
+
         def fDP(fpr):
             fnr = 0.0
             return fnr
@@ -67,6 +70,7 @@ class Mechanism():
         self.RenyiDP = RenyiDP
         self.approxRDP = approxRDP
         self.approxDP = approxDP
+        self.approx_delta =approx_delta
         self.fDP = fDP
 
         self.eps_pureDP = np.inf  # equivalent to RenyiDP(np.inf) and approxDP(0).
@@ -83,6 +87,10 @@ class Mechanism():
     def get_approxDP(self, delta):
         # Output eps as a function of delta
         return self.approxDP(delta)
+
+    def get_approx_delta(self, eps):
+        # Output delta as a function of epsilon
+        return self.approx_delta(eps)
 
     def get_approxRDP(self, delta, alpha):
         # Output eps as a function of delta and alpha
@@ -109,7 +117,9 @@ class Mechanism():
     def propagate_updates(self, func, type_of_update,
                           delta0=0,
                           BBGHS_conversion=True,
-                          fDP_based_conversion=False):
+                          fDP_based_conversion=False,take_log=True):
+        #eps0 is for approx_delta
+
         # This function receives a new description of the mechanisms and updates all functions
         # based on what is new by calling converters.
 
@@ -135,7 +145,7 @@ class Mechanism():
             eps = func[0]
             delta = func[1]
 
-            self.approxRDP = converter.pointwise_minimum_two_arguments(self.approxRDP,
+            self.approxRDP = converter.pointwise_minimum_two_args(self.approxRDP,
                                           converter.approxdp_to_approxrdp(eps, delta))
 
             def approx_dp_func(delta1):
@@ -161,7 +171,7 @@ class Mechanism():
         elif type_of_update == 'RDP':
             # function output RDP eps as a function of alpha
             self.RenyiDP = converter.pointwise_minimum(self.RenyiDP, func)
-
+            self.approx_delta = converter.pointwise_minimum(self.approx_delta, converter.rdp_to_delta(self.RenyiDP))
             if fDP_based_conversion:
 
                 fdp_log, fdp_grad_log = converter.rdp_to_fdp_and_fdp_grad_log(func)
@@ -246,8 +256,21 @@ class Mechanism():
             # TODO: Write a function that converts approximateRDP to approximateDP
 
             # TODO: Write a function that converts approximateRDP to fDP.
-        else:
-            print(type_of_update, ' not recognized.')
+        elif type_of_update == 'cdf_not_sym':
+            # when phi function is not symmetric, see subsample gaussian
+            cdf_p = func[0]
+            cdf_q = func[1]
+            self.approxDP = converter.pointwise_minimum(self.approxDP,
+                                                        converter.cdf_to_approxdp_nosym(cdf_p,cdf_q, take_log=take_log))
+            self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+                                                            converter.cdf_to_approxdelta_nosym(cdf_p, cdf_q))
+
+        elif type_of_update == 'cdf':
+            self.approxDP = converter.pointwise_minimum(self.approxDP,
+                                                        converter.cdf_to_approxdp(func, take_log=take_log))
+            self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+                                                        converter.cdf_to_approxdelta(func))
+            #print(type_of_update, ' not recognized.')
 
     # Plotting functions: returns lines for people to plot outside
 
