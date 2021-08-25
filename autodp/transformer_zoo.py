@@ -3,6 +3,7 @@
 
 from autodp.autodp_core import Mechanism, Transformer
 import math
+import autodp.cdf_bank  as cdf_bank
 import numpy as np
 
 from autodp import mechanism_zoo, rdp_acct
@@ -12,8 +13,12 @@ from autodp import mechanism_zoo, rdp_acct
 class Composition(Transformer):
     """ Composition is a transformer that takes a list of Mechanisms and number of times they appear,
     and output a Mechanism that represents the composed mechanism"""
-    def __init__(self):
+    def __init__(self, upper_bound=False):
         Transformer.__init__(self)
+        """
+        Args:
+
+        """
         self.name = 'Composition'
 
         # Update the function that is callable
@@ -68,6 +73,104 @@ class Composition(Transformer):
             params_cur = {mech.name+':'+k: v for k,v in mech.params.items()}
             params.update(params_cur)
         return params
+
+
+
+# The generic composition class
+class ComposeAFA(Transformer):
+    """ The analytical Fourier Accountant (AFA) is a transformer that takes a list of Mechanisms and number of times they appear,
+    and output a Mechanism that represents the composed mechanism.
+    https://arxiv.org/pdf/2106.08567.pdf
+    """
+    def __init__(self):
+        Transformer.__init__(self)
+        self.name = 'ComposeFourier'
+
+        # Update the function that is callable
+        self.transform = self.compose
+
+    def compose(self, mechanism_list, coeff_list):
+        """
+        In the composition, we keep track of two lists of characteristic functions (Phi(t) and Phi'(t))with
+        respect to the privacy loss R.V. log(p/q) and log(q/p).
+        For most basic mechanisms (e.g., Gaussian mechanism, Lapalce mechansims), their phi(t) and Phi'(t) are the same.
+        For some advanced mechanisms (e.g., SubsampleGaussian mechanism), their characteristic functions are not symmetric.
+        """
+
+        newmech = Mechanism()
+
+
+
+        # update the functions: phi_p_lower, phi_q_lower, phi_p_upper, phi_q_upper
+        def new_phi_p_lower(x):
+            return sum([c * mech.phi_p_lower(x) for (mech, c) in zip(mechanism_list, coeff_list)])
+
+        def new_phi_p_upper(x):
+            return sum([c * mech.phi_p_upper(x) for (mech, c) in zip(mechanism_list, coeff_list)])
+
+        def new_phi_q_lower(x):
+            return sum([c * mech.phi_q_lower(x) for (mech, c) in zip(mechanism_list, coeff_list)])
+
+        def new_phi_q_upper(x):
+            return sum([c * mech.phi_q_upper(x) for (mech, c) in zip(mechanism_list, coeff_list)])
+
+        # Flag the exactPhi to be False if one of the composed mechanism does not have an exact phi-function
+        # based-characterisation.
+        upper_bound = False
+        lower_bound = False
+        newmech.exactPhi = True
+        for mech in mechanism_list:
+            if mech.exactPhi == False:
+                newmech.exactPhi = False
+                if mech.upperPhi == True:
+                    upper_bound = True
+                else:
+                    lower_bound = True
+        # For mechanism with an exact phi-function, it admits both upper and lower bound phi-functions.
+        # The phi-functions of mechanisms that are being composed shall be all (upper_bound / exact_phi)  or (lower_bound / exact_phi.
+        assert not(lower_bound == True and upper_bound == True)
+
+        if newmech.exactPhi:
+            newmech.phi_p_lower = lambda x: new_phi_p_lower(x)
+            newmech.phi_p_upper = lambda x: new_phi_p_upper(x)
+            newmech.phi_q_lower = lambda x: new_phi_q_lower(x)
+            newmech.phi_q_upper = lambda x: new_phi_q_upper(x)
+            cdf_p = lambda x: cdf_bank.cdf_approx(newmech.phi_p_upper, x)
+            cdf_q = lambda x: cdf_bank.cdf_approx(newmech.phi_q_upper, x)
+        elif lower_bound:
+            newmech.phi_p_lower = lambda x: new_phi_p_lower(x)
+            newmech.phi_q_lower = lambda x: new_phi_q_lower(x)
+            cdf_p = lambda x: cdf_bank.cdf_approx(newmech.phi_p_lower, x)
+            cdf_q = lambda x: cdf_bank.cdf_approx(newmech.phi_q_lower, x)
+        else:
+            newmech.phi_p_upper = lambda x: new_phi_p_upper(x)
+            newmech.phi_q_upper = lambda x: new_phi_q_upper(x)
+            cdf_p = lambda x: cdf_bank.cdf_approx(newmech.phi_p_upper, x)
+            cdf_q = lambda x: cdf_bank.cdf_approx(newmech.phi_p_upper, x)
+
+        newmech.cdf = (cdf_p, cdf_q)
+        newmech.propagate_updates((cdf_p,cdf_q), 'cdf_not_sym', take_log=True)
+        # Other book keeping
+        newmech.name = self.update_name(mechanism_list, coeff_list)
+        # keep track of all parameters of the composed mechanisms
+        newmech.params = self.update_params(mechanism_list)
+
+        return newmech
+
+    def update_name(self,mechanism_list, coeff_list):
+        separator = ', '
+        s = separator.join([mech.name + ': ' + str(c) for (mech, c)
+                           in zip(mechanism_list, coeff_list)])
+
+        return 'Compose:{'+ s +'}'
+
+    def update_params(self, mechanism_list):
+        params = {}
+        for mech in mechanism_list:
+            params_cur = {mech.name+':'+k: v for k,v in mech.params.items()}
+            params.update(params_cur)
+        return params
+
 
 
 

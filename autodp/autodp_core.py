@@ -257,7 +257,7 @@ class Mechanism():
 
             # TODO: Write a function that converts approximateRDP to fDP.
         elif type_of_update == 'cdf_not_sym':
-            # when phi function is not symmetric, see subsample gaussian
+            # phi function is not symmetric, see subsample gaussian
             cdf_p = func[0]
             cdf_q = func[1]
             self.approxDP = converter.pointwise_minimum(self.approxDP,
@@ -270,7 +270,7 @@ class Mechanism():
                                                         converter.cdf_to_approxdp(func, take_log=take_log))
             self.approx_delta = converter.pointwise_minimum(self.approx_delta,
                                                         converter.cdf_to_approxdelta(func))
-            #print(type_of_update, ' not recognized.')
+
 
     # Plotting functions: returns lines for people to plot outside
 

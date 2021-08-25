@@ -32,11 +32,12 @@ def stable_log_diff_exp(x):
     return mag
 
 
-def cdf_approx(phi, ell):
+def cdf_approx(log_phi, ell):
     """
+     This function computes the CDF of privacy loss R.V. using Gaussian quadrature.
 
-     evaluate CDF using Gaussian quadrature
-    :param phi: the characteristic function
+     Args:
+        log_phi: the log of characteristic (phi)  function.
     ell: return the CDF when the privacy loss RV is evaluated at ell-th order
 
     :return: CDF
@@ -47,7 +48,7 @@ def cdf_approx(phi, ell):
         This part first projects the infinite intergral to [-1,1]
         """
         new_t = t*1.0/(1-t**2)
-        phi_result = [phi(x) for x in new_t]
+        phi_result = [log_phi(x) for x in new_t]
         phi_result = np.array(phi_result, dtype=np.complex128)
         inte_function = 1.j/new_t * np.exp(-1.j*new_t*ell)*np.exp(phi_result)
         return inte_function
@@ -58,7 +59,7 @@ def cdf_approx(phi, ell):
     #res = integrate.quadrature(inte_f, -1.0, 1.0, maxiter=500)
     result = res[0]
     error = res[1]
-    print('quadrature result', np.real(result)/(2*np.pi)+0.5, 'error range', error)
+    #print('quadrature result', np.real(result)/(2*np.pi)+0.5, 'error range', error)
     return np.real(result)/(2*np.pi)+0.5
 
 

@@ -101,7 +101,7 @@ def rdp_to_delta(rdp):
 
         results = minimize_scalar(err, method='bounded', bounds=[0, 0.1],options={'xatol':1e-14})
         if results.success and results.fun < 1e-6:
-            print('results', results.x)
+            #print('results', results.x)
             return results.x
         else:
             print('not found')
@@ -769,22 +769,21 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
 
 
-def old_cdf_to_approxdp_nosym(cdf_p,cdf_q,take_log = True):
+def cdf_to_approxdp_nosym(cdf_p,cdf_q,take_log = True):
     """
-    when cdf is not symtric 
+    when cdf is not symmetric
     """
     def trade_off(x):
         #x is e^epsilon
         if take_log:
             #print('take log input e^eps', x)
             log_e = np.log(x)
-            print('current eps', log_e)
+            #print('current eps', log_e)
             result = cdf_p(log_e) + x*cdf_q(-log_e)
-            print('current delta', 1-result)
+            #print('current delta', 1-result)
             return result
     exp_eps = numerical_inverse(trade_off, [0, 1])
     def approxdp(delta):
-        print('required delta', delta)
         return np.log(exp_eps(1 - delta))
     return approxdp
 
@@ -801,14 +800,14 @@ def cdf_to_approxdelta_nosym(cdf_p, cdf_q):
         delta = 1-cdf_p(eps) - np.exp(eps) * cdf_q(-eps)
         return delta
     return approx_delta
-def cdf_to_approxdp_nosym(cdf_p,cdf_q,take_log = True):
+def old_cdf_to_approxdp_nosym(cdf_p,cdf_q,take_log = True):
     """
     when cdf is not symtric
     """
 
     def trade_off(threshold):
         left = 0
-        right = 10 # the range of e^epsilon
+        right = np.exp(20) # the range of e^epsilon
         mid = 5
         while left<right and (right-left>1e-4):
             cur_value = cdf_p(np.log(mid)) + mid * cdf_q(-np.log(mid))
@@ -816,15 +815,15 @@ def cdf_to_approxdp_nosym(cdf_p,cdf_q,take_log = True):
                 return mid
             if (right-left<=1e-4):
                 return mid
-            print('current delta', 1-cur_value)
+            #print('current delta', 1-cur_value)
             if 1-cur_value > threshold:
                 left = mid
             else:
                 right = mid
 
             mid = (right + left)*1./2
-            print('current search epsilon', np.log(mid))
-            print('left', left, 'right', right)
+            #print('current search epsilon', np.log(mid))
+            #print('left', left, 'right', right)
         return mid
 
     def approxdp(delta):
@@ -860,7 +859,7 @@ def old_cdf_to_approxdp(cdf, take_log=True):
             #print('current eps', log_e)
 
             cur = cdf(log_e) + x*cdf(-log_e)
-            print('current delta', 1-cur)
+            #print('current delta', 1-cur)
         else:
             return cdf(x) + x*cdf(1.0/x)
     exp_eps = numerical_inverse(trade_off, [0, 1])
@@ -886,12 +885,12 @@ def cdf_to_approxdp(cdf, take_log=True):
         while left<right and (right-left>1e-4):
 
             cur_value = cdf(np.log(mid)) + mid * cdf(-np.log(mid))
-            print('cur delta before', 1-cur_value, 'cdf',cdf(np.log(mid)))
+            #print('cur delta before', 1-cur_value, 'cdf',cdf(np.log(mid)))
             if np.abs(1-cur_value - threshold) < 1e-5:
                 return mid
             if (right - left <= 1e-2):
                 return mid
-            print('current delta', 1-cur_value)
+            #print('current delta', 1-cur_value)
             if 1-cur_value > threshold:
                 left = mid
             else:
