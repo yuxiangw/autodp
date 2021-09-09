@@ -249,6 +249,23 @@ class Mechanism():
         else:
             print(type_of_update, ' not recognized.')
 
+
+    def set_all_representation(self, mech):
+        """
+        Set all representations from a mechanism object. This is useful when constructing a
+        mechanism object using transformers then wanted to convert to a mechanism class definition.
+
+        :param mech:  Input mechanism object.
+        :return: None
+        """
+        # Need to make sure that the input is a mechanism object
+
+        self.approxDP = mech.approxDP
+        self.RenyiDP = mech.RenyiDP
+        self.fDP = mech.fDP
+        self.eps_pureDP = mech.eps_pureDP
+        self.delta0 = mech.delta0
+
     # Plotting functions: returns lines for people to plot outside
 
     # Plot FNR against FPR --- hypothesis testing interpretation of DP
