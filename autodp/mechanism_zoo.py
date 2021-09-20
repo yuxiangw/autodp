@@ -164,8 +164,7 @@ class ExponentialMechanism(zCDP_Mechanism):
         self.eps_pureDP = eps
         self.propagate_updates(eps, 'pureDP')
 
-        # TODO: add the optimal (eps,delta)-DP computation from https://par.nsf.gov/servlets/purl/10215878
-        # TODO: implement the equivalent phi-function representation
+        # TODO: implement the f-function and phi-function representation from two logistic r.v.
 
 
 
