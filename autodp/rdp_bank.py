@@ -385,12 +385,70 @@ def RDP_pureDP(params,alpha):
     :return:Evaluation of the RDP's epsilon
     """
     eps = params['eps']
-    assert(eps>=0)
-    if alpha < 1:
-        # Pure DP needs to have identical support, thus - log(q(p>0)) = 0.
-        return 0
+    # assert(eps>=0)
+    # if alpha < 1:
+    #     # Pure DP needs to have identical support, thus - log(q(p>0)) = 0.
+    #     return 0
+    # else:
+    #     return np.minimum(eps,alpha*eps*eps/2)
+
+    assert (alpha >= 0)
+    if alpha == 1:
+        # Calculate this by l'Hospital rule
+        return eps * (math.cosh(eps) - 1) / math.sinh(eps)
+    elif np.isinf(alpha):
+        return eps
+    elif alpha > 1:
+        # in the proof of Lemma 4 of Bun et al. (2016)
+        s, mag = utils.stable_log_diff_exp(utils.stable_log_sinh(alpha * eps),
+                                           utils.stable_log_sinh((alpha - 1) * eps))
+        return (mag - utils.stable_log_sinh(eps)) / (alpha - 1)
     else:
-        return np.minimum(eps,alpha*eps*eps/2)
+        return min(alpha * eps * eps / 2, eps * (math.cosh(eps) - 1) / math.sinh(eps))
+
+
+def RDP_zCDP(params,alpha):
+    """
+    This function implements the RDP of (xi,rho)-zCDP mechanisms.
+    Definition 11 of https://arxiv.org/pdf/1605.02065.pdf
+
+    (Extended to  alpha > 0; may need to check for your mechanism)
+
+
+    :param params: rho --- zCDP parameter
+    xi ---- optional zCDP parameter
+    :param alpha: The order of the Renyi-Divergence
+    :return: the implied RDP at level alpha
+    """
+    rho = params['rho']
+    if 'xi' in params.keys():
+        xi = params['xi']
+    else:
+        xi = 0
+    assert (alpha >= 0)
+    return xi + rho*alpha
+
+
+def RDP_truncatedCDP(params,alpha):
+    """
+    This function implements the RDP of (rho,w)-tCDP mechanisms.
+    See Definition 1 of
+    https://projects.iq.harvard.edu/files/privacytools/files/bun_mark_composable_.pdf
+
+    (Extended to  alpha > 0; may need to check for your mechanism)
+
+    :param params: rho, w
+    :param alpha: The order of the Renyi-Divergence
+    :return: the implied RDP at level alpha
+    """
+    rho = params['rho']
+    w = params['w']
+    assert (alpha >= 0)
+    if alpha < w:
+        return rho*alpha
+    else:
+        return np.inf
+
 
 
 def RDP_subsampled_pureDP(params, alpha):
