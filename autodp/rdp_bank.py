@@ -68,6 +68,23 @@ def RDP_laplace(params, alpha):
         return utils.stable_logsumexp_two((alpha-1.0) / b + np.log(alpha / (2.0 * alpha - 1)),
                                            -1.0*alpha / b + np.log((alpha-1.0) / (2.0 * alpha - 1)))/(alpha-1)
 
+def RDP_zCDP(params,alpha):
+    """
+    This function implements the RDP of (xi,rho)-zCDP mechanisms.
+    Definition 11 of https://arxiv.org/pdf/1605.02065.pdf
+    (Extended to  alpha > 0; may need to check for your mechanism)
+    :param params: rho --- zCDP parameter
+    xi ---- optional zCDP parameter
+    :param alpha: The order of the Renyi-Divergence
+    :return: the implied RDP at level alpha
+    """
+    rho = params['rho']
+    if 'xi' in params.keys():
+        xi = params['xi']
+    else:
+        xi = 0
+    assert (alpha >= 0)
+    return xi + rho*alpha
 
 def RDP_independent_noisy_screen(params, alpha):
 

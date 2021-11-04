@@ -16,8 +16,8 @@ Calibrator --- A `calibrator' takes a mechanism with parameters (e.g. noise leve
 """
 
 import numpy as np
-from autodp import converter
-
+from autodp import converter, cdf_bank
+from scipy.optimize import minimize_scalar, root_scalar
 
 class Mechanism():
     """
@@ -57,7 +57,7 @@ class Mechanism():
         def approxRDP(delta, alpha):
             return np.inf
 
-        def approxDP(delta):
+        def approxDP(delta, estimated_eps=None):
             return np.inf
 
         def approx_delta(eps):
@@ -82,6 +82,7 @@ class Mechanism():
         self.local_flag = False  # for the purpose of implementating local DP.
         #  We can convert localDP to curator DP by parallel composition and by shuffling.
         self.updated = False  # if updated, then when getting eps, we know that directly getting
+        self.tbd_range = []
         # approxDP is the tightest possible.
 
     def get_approxDP(self, delta):
@@ -256,20 +257,41 @@ class Mechanism():
             # TODO: Write a function that converts approximateRDP to approximateDP
 
             # TODO: Write a function that converts approximateRDP to fDP.
-        elif type_of_update == 'cdf_not_sym':
-            # phi function is not symmetric, see subsample gaussian
-            cdf_p = func[0]
-            cdf_q = func[1]
+        elif type_of_update == 'log_phi':
+            # cdf_p is for log(p/q) and cdf_q is for log(q/p)
+            log_phi_p = func[0]
+            log_phi_q = func[1]
+            cdf_p = lambda x: cdf_bank.cdf_approx(log_phi_p, x)
+            cdf_q = lambda x: cdf_bank.cdf_approx(log_phi_q, x)
             self.approxDP = converter.pointwise_minimum(self.approxDP,
-                                                        converter.cdf_to_approxdp_nosym(cdf_p,cdf_q, take_log=take_log))
+                                                        converter.cdf_to_approxdp(cdf_p,cdf_q))
             self.approx_delta = converter.pointwise_minimum(self.approx_delta,
-                                                            converter.cdf_to_approxdelta_nosym(cdf_p, cdf_q))
+                                                            converter.cdf_to_approxdelta(cdf_p, cdf_q))
 
-        elif type_of_update == 'cdf':
-            self.approxDP = converter.pointwise_minimum(self.approxDP,
-                                                        converter.cdf_to_approxdp(func, take_log=take_log))
-            self.approx_delta = converter.pointwise_minimum(self.approx_delta,
-                                                        converter.cdf_to_approxdelta(func))
+        elif type_of_update =='log_phi_adv':
+            # The phi-function is parametrized by more than one parameters.
+            log_phi_p = func[0]
+            log_phi_q = func[1]
+
+            cdf_p = lambda x, t: cdf_bank.cdf_approx(log_phi_p, x, tbd=t)
+            cdf_q = lambda x, t: cdf_bank.cdf_approx(log_phi_q, x, tbd=t)
+
+            # first find t that optimize for one particular delta
+            # we can set delta = 1e-5, and try out the tbd
+            normal_equation = lambda tbd: converter.cdf_to_approxdp_tbd(cdf_p, cdf_q, tbd)
+            n = 20
+            clip = (self.tbd_range[1] - self.tbd_range[0])*1.0/n
+            tbd_list = [self.tbd_range[0] + t*clip for t in range(n)]
+            # select a delta randomly
+            result_list = [normal_equation(tbd)(1e-5) for tbd in tbd_list]
+            result_list = np.array(result_list)
+            t = tbd_list[np.argmax(result_list)]
+            t = 0.5
+            self.approxDP = converter.cdf_to_approxdp_adv(cdf_p, cdf_q,t)
+            #self.approxDP = converter.pointwise_minimum(self.approxDP, converter.cdf_to_approxdp_tbd(func,t))
+
+            #self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+            #                                                results[0])
 
 
     # Plotting functions: returns lines for people to plot outside

@@ -8,6 +8,7 @@ import numpy as np
 from autodp.autodp_core import Mechanism
 from autodp import rdp_bank, dp_bank, fdp_bank, utils, cdf_bank,phi_bank
 from autodp import transformer_zoo
+from sympy import *
 from scipy.stats import norm
 from scipy.optimize import minimize_scalar
 
@@ -17,7 +18,7 @@ class GaussianMechanism(Mechanism):
     """
     The example of Gaussian mechanism with different characterizations.
     """
-    def __init__(self, sigma, coeff=None, name='Gaussian',
+    def __init__(self, sigma, name='Gaussian',
                  RDP_off=False, approxDP_off=False, fdp_off=True,
                  use_basic_RDP_to_approxDP_conversion=False,
                  use_fDP_based_RDP_to_approxDP_conversion=False, phi_off=True):
@@ -40,18 +41,14 @@ class GaussianMechanism(Mechanism):
             """
             Apply phi function to analyze Gaussian mechanism.
             the CDF of privacy loss R.V. is computed using an integration (see details in cdf_bank) through Levy Theorem.
-            If self.exactPhi = True, the algorithm provides an exact characteristion.
+            If self.exactPhi = True, the algorithm provides an exact characterization.
             """
             self.exactPhi = True
-            phi = lambda x: phi_bank.phi_gaussian({'sigma': sigma}, x)
-            self.phi_p_lower = self.phi_q_lower = self.phi_p_upper = self.phi_q_upper = phi
-            cdf = lambda x: cdf_bank.cdf_approx(phi, x)
+            log_phi = lambda x: phi_bank.phi_gaussian({'sigma': sigma}, x)
+            self.log_phi_p = self.log_phi_q = log_phi
 
-            self.cdf = (cdf, cdf)
             # self.cdf tracks the cdf of log(p/q) and the cdf of log(q/p).
-            self.propagate_updates((cdf, cdf), 'cdf_not_sym', take_log=True)
-
-
+            self.propagate_updates((log_phi, log_phi), 'log_phi')
             """
             Moreover, we know the closed-form expression of the CDF of the privacy loss RV
                privacy loss RV distribution l=log(p/q) ~ N(1/2\sigma^2, 1/sigma^2)
@@ -134,12 +131,14 @@ class LaplaceMechanism(Mechanism):
         self.delta0 = 0
         if not phi_off:
 
-            phi = lambda x: phi_bank.phi_laplace(self.params, x)
-            cdf = lambda x: cdf_bank.cdf_approx(phi, x)
+            log_phi_p = lambda x: phi_bank.phi_laplace(self.params, x)
+            log_phi_q = lambda x: phi_bank.phi_laplace(self.params, x)
+
             self.exactPhi = True
-            self.phi_p_lower = self.phi_q_lower = self.phi_p_upper = self.phi_q_upper = phi
-            self.cdf = cdf
-            self.propagate_updates(cdf, 'cdf', take_log=True)
+            self.log_phi_p = log_phi_p
+            self.log_phi_q = log_phi_q
+            self.propagate_updates((log_phi_p, log_phi_q), 'log_phi')
+
 
         if not RDP_off:
             new_rdp = lambda x: rdp_bank.RDP_laplace({'b': b}, x)
@@ -168,12 +167,51 @@ class RandresponseMechanism(Mechanism):
             self.propagate_updates(new_rdp, 'RDP')
 
         if not phi_off:
-            phi = lambda x: phi_bank.phi_rr({'p': p}, x)
-            cdf = lambda x: cdf_bank.cdf_approx(phi, x)
+            log_phi = lambda x: phi_bank.phi_rr({'p': p}, x)
             self.exactPhi = True
-            self.phi_p_lower = self.phi_q_lower = self.phi_p_upper = self.phi_q_upper = phi
-            self.cdf = cdf
-            self.propagate_updates(cdf, 'cdf', take_log=True)
+            self.log_phi_p = self.log_phi_q = log_phi
+            self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi')
+
+class zCDP_Mechanism(Mechanism):
+    def __init__(self,rho,xi=0,name='zCDP_mech'):
+        Mechanism.__init__(self)
+
+        self.name = name
+        self.params = {'rho':rho,'xi':xi}
+        new_rdp = lambda x: rdp_bank.RDP_zCDP(self.params, x)
+
+        self.propagate_updates(new_rdp,'RDP')
+
+
+class ExponentialMechanism(zCDP_Mechanism):
+    def __init__(self, eps,RDP_off=False, phi_off=True,  name='ExpMech'):
+        zCDP_Mechanism.__init__(self, eps**2/8, name=name)
+        # the zCDP bound is from here: https://arxiv.org/pdf/2004.07223.pdf
+
+        # TODO: Bounded range should imply a slightly stronger RDP that dominates the following
+        self.eps_pureDP = eps
+        self.propagate_updates(eps, 'pureDP')
+
+
+        def func(t):
+            """
+            Return the bernoulli parameter p and q for any t.
+            This is used for non-adaptive composition
+            """
+            p = (np.exp(-t) - np.exp(-eps))/(1-np.exp(-eps))
+            q = (1 - np.exp(t-eps))/(1-np.exp(-eps))
+            return {'p':p, 'q':q}
+        # TODO: implement the f-function and phi-function representation from two logistic r.v.
+        if not phi_off:
+            # t is from [0, eps], log(p/q) in [t-eps, t], we optimize t over composition
+            self.log_phi_p = lambda x, t: phi_bank.phi_rr_p(func(t), x)
+            self.log_phi_q = lambda x, t: phi_bank.phi_rr_q(func(t), x)
+
+            self.exactPhi = True
+            # the range of t
+            self.tbd_range = [0, eps]
+            self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi_adv')
+
 
 class PureDP_Mechanism(Mechanism):
     def __init__(self, eps, name='PureDP'):
@@ -376,7 +414,7 @@ class SubSampleGaussian_phi(Mechanism):
     mechanism and the Subset Gaussian mechanism.
     For details of phi-function based characterization, see https://arxiv.org/pdf/2106.08567.pdf Algorithm 2
     """
-    def __init__(self, sigma, gamma, coeff=1, name='Subsample_Gaussian_phi', lower_bound = False, upper_bound=False):
+    def __init__(self, sigma, gamma, name='Subsample_Gaussian_phi', lower_bound = False, upper_bound=False):
         """
         sigma: the std of the noise divide by the l2 sensitivity.
         gamma: the sampling probability.
@@ -391,35 +429,25 @@ class SubSampleGaussian_phi(Mechanism):
         self.params = {'sigma': sigma,'gamma':gamma}  # This will be useful for the Calibrator
         # TODO: should a generic unspecified mechanism have a name and a param dictionary?
 
+        self.exactPhi = False
         self.delta0 = 0
         if lower_bound:
-            # phi_p denotes the approximated phi-function of the privacy loss R.V. log(p/q).
-            # phi_q denotes the approximated phi-function of the privacy loss R.V. log(q/p).
-            self.exactPhi = False
-            phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x,  phi_min = True)
-            phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x,  phi_min = True)
-            self.phi_p_lower = phi_p
-            self.phi_q_lower = phi_q
+            # log_phi_p denotes the approximated phi-function of the privacy loss R.V. log(p/q).
+            # log_phi_q denotes the approximated phi-function of the privacy loss R.V. log(q/p).
+            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x,  phi_min = True)
+            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x,  phi_min = True)
         elif upper_bound:
-            self.exactPhi = False
-            phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x, phi_max=True)
-            phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x, phi_max=True)
-            self.phi_p_upper = phi_p
-            self.phi_q_upper = phi_q
+            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x, phi_max=True)
+            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x, phi_max=True)
+
         else:
             # The following phi_p and phi_q is for Double quadrature method.
             # Double quadrature method approximates phi-function using Gaussian quadrature directly.
-            self.exactPhi = False
-            phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x)
-            phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x)
-            self.phi_p_lower = self.phi_p_upper = phi_p
-            self.phi_q_lower = self.phi_q_lower = phi_q
+            self.exactPhi = True
+            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x)
+            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x)
 
-        # cdf_p approximates the cdf of the privacy loss R.V. log(p/q)
-        cdf_p = lambda x: cdf_bank.cdf_approx(phi_p, x)
-        cdf_q = lambda x: cdf_bank.cdf_approx(phi_q, x)
-        self.cdf = (cdf_p, cdf_q)
-        self.propagate_updates((cdf_p,cdf_q), 'cdf_not_sym', take_log=True)
+        self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi')
 
 
 
