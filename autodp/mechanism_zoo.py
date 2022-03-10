@@ -134,7 +134,6 @@ class LaplaceMechanism(Mechanism):
             log_phi_p = lambda x: phi_bank.phi_laplace(self.params, x)
             log_phi_q = lambda x: phi_bank.phi_laplace(self.params, x)
 
-            self.exactPhi = True
             self.log_phi_p = log_phi_p
             self.log_phi_q = log_phi_q
             self.propagate_updates((log_phi_p, log_phi_q), 'log_phi')
@@ -159,7 +158,7 @@ class RandresponseMechanism(Mechanism):
         Mechanism.__init__(self)
 
         self.name = name
-        self.params = {'p': p}  # This will be useful for the Calibrator
+        self.params = {'p': p}
         self.delta0 = 0
 
         if not RDP_off:
@@ -167,8 +166,7 @@ class RandresponseMechanism(Mechanism):
             self.propagate_updates(new_rdp, 'RDP')
 
         if not phi_off:
-            log_phi = lambda x: phi_bank.phi_rr({'p': p}, x)
-            self.exactPhi = True
+            log_phi = lambda x: phi_bank.phi_rr_p({'p': p, 'q':1-p}, x)
             self.log_phi_p = self.log_phi_q = log_phi
             self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi')
 
@@ -188,11 +186,12 @@ class ExponentialMechanism(zCDP_Mechanism):
         zCDP_Mechanism.__init__(self, eps**2/8, name=name)
         # the zCDP bound is from here: https://arxiv.org/pdf/2004.07223.pdf
 
-        # TODO: Bounded range should imply a slightly stronger RDP that dominates the following
         self.eps_pureDP = eps
         self.propagate_updates(eps, 'pureDP')
 
-
+        if not RDP_off:
+            new_rdp = lambda x: rdp_bank.RDP_pureDP({'eps': eps/2.}, x)
+            self.propagate_updates(new_rdp, 'RDP')
         def func(t):
             """
             Return the bernoulli parameter p and q for any t.
@@ -203,11 +202,10 @@ class ExponentialMechanism(zCDP_Mechanism):
             return {'p':p, 'q':q}
         # TODO: implement the f-function and phi-function representation from two logistic r.v.
         if not phi_off:
-            # t is from [0, eps], log(p/q) in [t-eps, t], we optimize t over composition
+            # t is from [0, eps], log(p/q) in [t-eps, t], we optimize t over compositions.
             self.log_phi_p = lambda x, t: phi_bank.phi_rr_p(func(t), x)
             self.log_phi_q = lambda x, t: phi_bank.phi_rr_q(func(t), x)
 
-            self.exactPhi = True
             # the range of t
             self.tbd_range = [0, eps]
             self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi_adv')
@@ -285,8 +283,9 @@ class ComposedGaussianMechanism(Mechanism):
 
 class NoisyScreenMechanism(Mechanism):
     """
-    The data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN (CPVR-20))
-    This mechanism is also used in Figure 2(a) in NIPS-20
+    The data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN (CVPR-20))
+    This mechanism is also used in Figure 2(a) in Gaussian-based SVTs.
+    https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf
     """
     def __init__(self,params,name='NoisyScreen'):
         Mechanism.__init__(self)
@@ -300,10 +299,12 @@ class NoisyScreenMechanism(Mechanism):
 
 class GaussianSVT_Mechanism(Mechanism):
     """
-    Gaussian SVT  proposed by NeurIPS-20
-    parameters k and sigma
-    k is the maximum length before the algorithm stops
-    rdp_c_1 = True indicates we use RDP-based Gaussian-SVT with c=1, else c>1
+    The Gaussian-based SVT mechanism is described in
+    https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf
+
+    The mechanism takes the parameter k and c.k is the maximum length before
+    the algorithm stops. c is the cut-off parameter.  Setting rdp_c_1 = True implies that
+    we use RDP-based Gaussian-SVT with c=1, else c>1.
 
     """
     def __init__(self,params,name='GaussianSVT', rdp_c_1=True):
@@ -321,8 +322,8 @@ class GaussianSVT_Mechanism(Mechanism):
 
 class LaplaceSVT_Mechanism(Mechanism):
     """
-    Laplace SVT (c>=1) used in NeurIPS-20
-    parameters k and sigma
+    Laplace SVT (c>=1) with a RDP description.
+    The mechanism takes the parameter k and sigma.
     k is the maximum length before the algorithm stops
     We provide the RDP implementation and pure-DP implementation
     """
@@ -337,11 +338,11 @@ class LaplaceSVT_Mechanism(Mechanism):
 
 class StageWiseMechanism(Mechanism):
     """
-    The StageWise generalized SVT is proposed by Zhu et.al., NeurIPS-20
-    used for Sparse vector technique with Gaussian Noise
-
-    c is the number of tops (composition)
-    k is the maximum limit for each chunk, e.g., the algorithm restarts whenever it encounters a top or reaches k limit.
+    The StageWise generalized SVT is proposed by Zhu et.al., NeurIPS-20 (see Algorithm 3).
+    This mechanism generalizes the Gaussian-based SVT.
+    The mechanism takes two parameter c and k. c is the cut-off parameter (the number of tops in svt)
+    and k denotes the  maximum limit for each chunk, e.g., the algorithm restarts whenever it encounters
+     a top or reaches k limit.
     """
     def __init__(self, params=None,approxDP_off=False, name='StageWiseMechanism'):
         # the sigma parameter is the std of the noise divide by the l2 sensitivity
@@ -426,10 +427,8 @@ class SubSampleGaussian_phi(Mechanism):
         Mechanism.__init__(self)
 
         self.name = name  # When composing
-        self.params = {'sigma': sigma,'gamma':gamma}  # This will be useful for the Calibrator
-        # TODO: should a generic unspecified mechanism have a name and a param dictionary?
+        self.params = {'sigma': sigma,'gamma':gamma}
 
-        self.exactPhi = False
         self.delta0 = 0
         if lower_bound:
             # log_phi_p denotes the approximated phi-function of the privacy loss R.V. log(p/q).
@@ -443,7 +442,6 @@ class SubSampleGaussian_phi(Mechanism):
         else:
             # The following phi_p and phi_q is for Double quadrature method.
             # Double quadrature method approximates phi-function using Gaussian quadrature directly.
-            self.exactPhi = True
             self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x)
             self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x)
 

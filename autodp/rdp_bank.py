@@ -12,18 +12,7 @@ the per-instance RDP associated with two given data sets.
 import numpy as np
 import math
 from autodp import utils
-
-
-def _log1mexp(x):
-    """ from pate Numerically stable computation of log(1-exp(x))."""
-    if x < -1:
-        return math.log1p(-math.exp(x))
-    elif x < 0:
-        return math.log(-math.expm1(x))
-    elif x == 0:
-        return -np.inf
-    else:
-        raise ValueError("Argument must be non-positive.")
+from autodp.utils import _log1mexp
 
 
 def stable_log_diff_exp(x):
@@ -37,10 +26,11 @@ def stable_log_diff_exp(x):
 
 def RDP_gaussian(params, alpha):
     """
-    :param params:
-        'sigma' --- is the normalized noise level: std divided by global L2 sensitivity
-    :param alpha: The order of the Renyi Divergence
-    :return: Evaluation of the RDP's epsilon
+    Args:
+        sigma: normalized noise level: std divided by global L2 sensitivity
+        alpha: The order of the Renyi Divergence
+
+    Return: Evaluation of the RDP's epsilon
     """
     sigma = params['sigma']
     assert(sigma > 0)
@@ -50,10 +40,10 @@ def RDP_gaussian(params, alpha):
 
 def RDP_laplace(params, alpha):
     """
-    :param params:
-        'b' --- is the is the ratio of the scale parameter and L1 sensitivity
-    :param alpha: The order of the Renyi Divergence
-    :return: Evaluation of the RDP's epsilon
+    Args:
+        b: the ratio of the scale parameter and L1 sensitivity
+        alpha: The order of the Renyi Divergence
+    Return: Evaluation of the RDP's epsilon
     """
 
     b = params['b']
@@ -89,9 +79,17 @@ def RDP_zCDP(params,alpha):
 def RDP_independent_noisy_screen(params, alpha):
 
     """
-    return the approximation of data-independent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN)
+    The data-independent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN).
+
+    The method is described in https://openaccess.thecvf.com/content_CVPR_2020/html/Zhu_Private-kNN_Practical_Differential_Privacy_for_Computer_Vision_CVPR_2020_paper.html)
     The exact data-independent bound requires searching a max_count from [k/c, k] to maximize RDP_noisy_screening for any alpha
 
+    Args:
+        params: contains three parameters. params['thresh'] is the threshold for noisy screening,
+        k is the number of neighbors in Private-kNN, sigma is the noisy scale.
+
+    Returns:
+        The RDP of data-independent noisy screening.
     """
     threshold =params['thresh']
     k = params['k']
@@ -121,8 +119,11 @@ def RDP_independent_noisy_screen(params, alpha):
 def RDP_noisy_screen(params, alpha):
 
     """
-    return the data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN)
-    param logp, logq: the log of p and q, where p is probability of P(max_vote + noise > Threshold)
+    return the data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN).
+
+    Args:
+        params contains two parameters logp and logq. logp denotes the log of
+         probability of P(max_vote + noise > Threshold).
 
     """
     logp =params['logp']
@@ -142,10 +143,12 @@ def RDP_noisy_screen(params, alpha):
 
 def RDP_inde_pate_gaussian(params, alpha):
     """
-    Return the data-independent RDP of Noisy Aggregation (the global sensitivity is 2)
-    :param params:
-    :param alpha:
-    :return:
+    Return the data-independent RDP of Noisy Aggregation (the global sensitivity is 2).
+    The method is descriped in https://arxiv.org/abs/1802.08908
+
+    Args:
+        sigma: noisy scale added to the vote count.
+
     """
     sigma = params['sigma']
     return 1.0/sigma **2 *alpha
@@ -235,9 +238,12 @@ def RDP_depend_pate_gaussian(params, alpha):
 
 def RDP_randresponse(params, alpha):
     """
-    :param params:
-        'p' --- is the Bernoulli probability p of outputting the truth
-    :param alpha: The order of the Renyi Divergence
+    The RDP of the random response mechanism.
+
+    Args:
+        p: is the Bernoulli probability p of outputting the truth
+        alpha: The order of the Renyi Divergence
+
     :return: Evaluation of the RDP's epsilon
     """
 
@@ -258,13 +264,14 @@ def RDP_randresponse(params, alpha):
 
 def RDP_expfamily(params, alpha):
     """
-    :param params: 'Delta': max distance of the natural parameters between two adjacent data sets in a certain norms.
+    The RDP of the exponential mechanism.
+    The details can be found in Proposition 29 and Remark 30 of Wang, Balle, Kasiviswanathan (2018).
+    Args:
+        Delta: max distance of the natural parameters between two adjacent data sets in a certain norms.
         'L' 'B' are lambda functions. They are upper bounds of the local smoothness and local Lipschitzness
         of the log-partition function A, as a function of the radius of the local neighborhood in that norm.
-    :param alpha: The order of the Renyi Divergence
-    :return: Evaluation of the RDP's epsilon
+        alpha: The order of the Renyi Divergence
 
-        See Proposition 29 and Remark 30 of Wang, Balle, Kasiviswanathan (2018)
     """
     Delta = params['Delta']
     L  = params['L'] # Local smoothness function that takes radius kappa as a input.
@@ -311,11 +318,12 @@ def pRDP_diag_gaussian(params, alpha):
 
 def RDP_svt_laplace(params, alpha):
     """
-    Laplace-SVT (via RDP), used in NeurIPS-20
-    :param b is the noise scale for rho
-    :param params:
-    :param alpha:
-    :return:
+    The RDP of Laplace-based SVT.
+    Args:
+        params['b']: the Laplace noise scale divide the sensitivity.
+        params['k']: the SVT algorithm stops either k queries is achieved
+        or the cut-off c is achieved.
+
     """
     b = params['b']
     k = params['k']  # the algorithm stops either k is achieved or c is achieved
@@ -347,12 +355,13 @@ def RDP_svt_laplace(params, alpha):
 
 def RDP_gaussian_svt_cgreater1(params, alpha):
     """
-        This is for gaussian-svt with c>1
-        k is the maximum length before svt stops
-        :param params:
-        :param alpha:
-        :return:
-        """
+    The RDP of the gaussian-based SVT with the cut-off parameter c>1.
+
+    Args:
+        k:the maximum length before svt stops
+        sigma: noise added to the threshold.
+        c: the cut-off parameter in SVT.
+    """
     sigma = params['sigma']
     c = max(params['c'], 1)
     k = params['k']  # the algorithm stops either k is achieved or c is achieved
@@ -364,11 +373,15 @@ def RDP_gaussian_svt_cgreater1(params, alpha):
 
 def RDP_gaussian_svt_c1(params, alpha):
     """
-    This is for gaussian-svt with c=1
-    k is the maximum length before svt stops
-    :param params:
-    :param alpha:
-    :return:
+    The RDP of the gaussian-based SVT with the cut-off parameter c=1.
+
+    The detailed algorithm is described in Theorem 8 in
+    https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf/
+
+    Args:
+        k:the maximum length before svt stops
+        sigma: noise added to the threshold.
+        c: the cut-off parameter in SVT.
     """
     sigma = params['sigma']
     k = params['k']
@@ -407,7 +420,10 @@ def RDP_pureDP(params,alpha):
         # Pure DP needs to have identical support, thus - log(q(p>0)) = 0.
         return 0
     else:
-        return np.minimum(eps,alpha*eps*eps/2)
+        cdp_bound = np.sinh(alpha * eps) - np.sinh((alpha - 1) * eps)
+        cdp_bound = cdp_bound / np.sinh(eps)
+        cdp_bound = 1.0 / (alpha - 1) * np.log(cdp_bound)
+        return np.minimum(np.minimum(eps,alpha*eps*eps/2), cdp_bound)
 
 
 def RDP_subsampled_pureDP(params, alpha):

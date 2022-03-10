@@ -118,8 +118,7 @@ class Mechanism():
     def propagate_updates(self, func, type_of_update,
                           delta0=0,
                           BBGHS_conversion=True,
-                          fDP_based_conversion=False,take_log=True):
-        #eps0 is for approx_delta
+                          fDP_based_conversion=False, n_quad=700):
 
         # This function receives a new description of the mechanisms and updates all functions
         # based on what is new by calling converters.
@@ -257,22 +256,32 @@ class Mechanism():
             # TODO: Write a function that converts approximateRDP to approximateDP
 
             # TODO: Write a function that converts approximateRDP to fDP.
+
+
         elif type_of_update == 'log_phi':
+            # Analytical Fourier accountant, function will be a pair
+            # of log characteristic functions.
             # cdf_p is for log(p/q) and cdf_q is for log(q/p)
             log_phi_p = func[0]
             log_phi_q = func[1]
-            cdf_p = lambda x: cdf_bank.cdf_approx(log_phi_p, x)
-            cdf_q = lambda x: cdf_bank.cdf_approx(log_phi_q, x)
+            # Apply Gaussian quadrature to do numerical inversion.
+            cdf_p = lambda x: cdf_bank.cdf_quad(log_phi_p, x, n_quad = n_quad)
+            cdf_q = lambda x: cdf_bank.cdf_quad(log_phi_q, x, n_quad = n_quad)
+            # l is the range of eps
+            #cdf_p = lambda l: cdf_bank.cdf_approx_fft(log_phi_p, l)
+            #cdf_q = lambda l: cdf_bank.cdf_approx_fft(log_phi_q, l)
+
             self.approxDP = converter.pointwise_minimum(self.approxDP,
                                                         converter.cdf_to_approxdp(cdf_p,cdf_q))
             self.approx_delta = converter.pointwise_minimum(self.approx_delta,
                                                             converter.cdf_to_approxdelta(cdf_p, cdf_q))
 
         elif type_of_update =='log_phi_adv':
-            # The phi-function is parametrized by more than one parameters.
+            # Todo: Future work when the phi-function is parametrized by
+            #  more than one parameter.
+            """
             log_phi_p = func[0]
             log_phi_q = func[1]
-
             cdf_p = lambda x, t: cdf_bank.cdf_approx(log_phi_p, x, tbd=t)
             cdf_q = lambda x, t: cdf_bank.cdf_approx(log_phi_q, x, tbd=t)
 
@@ -286,12 +295,13 @@ class Mechanism():
             result_list = [normal_equation(tbd)(1e-5) for tbd in tbd_list]
             result_list = np.array(result_list)
             t = tbd_list[np.argmax(result_list)]
-            t = 0.5
+
             self.approxDP = converter.cdf_to_approxdp_adv(cdf_p, cdf_q,t)
             #self.approxDP = converter.pointwise_minimum(self.approxDP, converter.cdf_to_approxdp_tbd(func,t))
 
             #self.approx_delta = converter.pointwise_minimum(self.approx_delta,
             #                                                results[0])
+            """
 
 
     # Plotting functions: returns lines for people to plot outside

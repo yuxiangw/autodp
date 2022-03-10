@@ -13,7 +13,7 @@ from autodp import mechanism_zoo, rdp_acct
 class Composition(Transformer):
     """ Composition is a transformer that takes a list of Mechanisms and number of times they appear,
     and output a Mechanism that represents the composed mechanism"""
-    def __init__(self, upper_bound=False):
+    def __init__(self):
         Transformer.__init__(self)
         """
         Args:
@@ -93,7 +93,7 @@ class ComposeAFA(Transformer):
         """
         In the composition, we keep track of two lists of characteristic functions (Phi(t) and Phi'(t))with
         respect to the privacy loss R.V. log(p/q) and log(q/p).
-        For most basic mechanisms (e.g., Gaussian mechanism, Lapalce mechansims), their phi(t) and Phi'(t) are the same.
+        For most basic mechanisms (e.g., Gaussian mechanism, Lapalce mechanism), their phi(t) and Phi'(t) are the same.
         For some advanced mechanisms (e.g., SubsampleGaussian mechanism), their characteristic functions are not symmetric.
         """
 
@@ -141,54 +141,58 @@ class ComposeAFA(Transformer):
 
 # The generic composition class
 class ComposeAFA_multiv(Transformer):
-    """ The analytical Fourier Accountant (AFA) is a transformer that takes a list of Mechanisms and number of times they appear,
-    and output a Mechanism that represents the composed mechanism.
-    This one takes multi-variables.
-    https://arxiv.org/pdf/2106.08567.pdf
+    """ The analytical Fourier Accountant (AFA) is a transformer that takes a list of Mechanisms and number of times
+    they appear, and output a Mechanism that represents the composed mechanism.
+
+    In more details, the accountants:
+    1. first describes each mechanism with a pair of characteristic function.
+    2. composes the log of characteristic function linearly.
+    3. for eps(delta) or delta(eps) query, convert the composed characteristic function back to cdf using Levy theorem
+    with Gaussian quadrature.
+
+    The details can be found in https://arxiv.org/pdf/2106.08567.pdf
     """
-    def __init__(self):
+    def __init__(self, n_quad=700):
         Transformer.__init__(self)
         self.name = 'ComposeFourier'
 
         # Update the function that is callable
         self.transform = self.compose
+        self.n_quad = n_quad
 
-    def compose(self, mechanism_list, coeff_list):
+    def compose(self, mechanism_list, comp_list):
         """
         In the composition, we keep track of two lists of characteristic functions (Phi(t) and Phi'(t))with
         respect to the privacy loss R.V. log(p/q) and log(q/p).
-        For most basic mechanisms (e.g., Gaussian mechanism, Lapalce mechansims), their phi(t) and Phi'(t) are the same.
+        For most basic mechanisms (e.g., Gaussian mechanism, Laplace mechanism), their phi(t) and Phi'(t) are the same.
         For some advanced mechanisms (e.g., SubsampleGaussian mechanism), their characteristic functions are not symmetric.
         """
 
         newmech = Mechanism()
         def new_log_phi_p(x):
-            return sum([c * mech.log_phi_p(x) for (mech, c) in zip(mechanism_list, coeff_list)])
+            return sum([c * mech.log_phi_p(x) for (mech, c) in zip(mechanism_list, comp_list)])
 
         def new_log_phi_q(x):
-            return sum([c * mech.log_phi_q(x) for (mech, c) in zip(mechanism_list, coeff_list)])
-
-        # Flag the exactPhi to be False if one of the composed mechanism does not have an exact phi-function
-        # based-characterisation.
+            return sum([c * mech.log_phi_q(x) for (mech, c) in zip(mechanism_list, comp_list)])
 
 
-        # Assume one more parameter t
-        newmech.log_phi_p = lambda x,t: new_log_phi_p(x,t)
-        newmech.log_phi_q = lambda x,t: new_log_phi_q(x,t)
+        # Define a composed mechanism
+        newmech.log_phi_p = lambda x: new_log_phi_p(x)
+        newmech.log_phi_q = lambda x: new_log_phi_q(x)
 
 
-        newmech.propagate_updates((newmech.log_phi_p, newmech.log_phi_q), 'log_phi')
+        newmech.propagate_updates((newmech.log_phi_p, newmech.log_phi_q), 'log_phi', n_quad=self.n_quad)
         # Other book keeping
-        newmech.name = self.update_name(mechanism_list, coeff_list)
+        newmech.name = self.update_name(mechanism_list, comp_list)
         # keep track of all parameters of the composed mechanisms
         newmech.params = self.update_params(mechanism_list)
 
         return newmech
 
-    def update_name(self,mechanism_list, coeff_list):
+    def update_name(self,mechanism_list, comp_list):
         separator = ', '
         s = separator.join([mech.name + ': ' + str(c) for (mech, c)
-                           in zip(mechanism_list, coeff_list)])
+                           in zip(mechanism_list, comp_list)])
 
         return 'Compose:{'+ s +'}'
 

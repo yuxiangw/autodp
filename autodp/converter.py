@@ -8,7 +8,7 @@ import math
 from autodp import rdp_bank
 from scipy.optimize import minimize_scalar, root_scalar
 from autodp import utils
-
+import time
 
 def puredp_to_rdp(eps):
     # From pure dp to RDP
@@ -78,13 +78,6 @@ def rdp_to_delta(rdp):
                         sign, term_1= utils.stable_log_diff_exp((x-1)*rdp(x),0)
                         result = utils.stable_logsumexp_two(term_1 - np.log(x)- np.log(delta),0)
                         return min(result*1.0/(x - 1), bbghs)
-                        #print('alpha*delta',x*delta,'EPS',eps,'delta',delta, 'bbghs', bbghs, 'tradional',np.log(1 / delta) / (x - 1) + rdp(x))
-                        #return bbghs
-                        #if bbghs>0:
-                        return bbghs
-                        #return np.log(1 / delta) / (x - 1) + rdp(x)
-                        #use BBGHS for RDP conversion
-                        #return np.log(1 / delta) / (x - 1) + rdp(x)
 
                 results = minimize_scalar(fun, method='Brent', bracket=(1, 2), bounds=[1, 100000])
                 if results.success:
@@ -100,7 +93,7 @@ def rdp_to_delta(rdp):
             return abs(eps - current_eps)
 
         results = minimize_scalar(err, method='bounded', bounds=[0, 0.1],options={'xatol':1e-14})
-        if results.success and results.fun < 1e-6:
+        if results.success:
             #print('results', results.x)
             return results.x
         else:
@@ -769,145 +762,131 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
 
 
-def cdf_to_approxdp_nosym(cdf_p,cdf_q,take_log = True):
+def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
     """
-    when cdf is not symmetric
+    Solve eps(delta) query by searching a pair of cdf such that
+    delta(eps) = 1 - cdf_p(eps) - e^eps*cdf_q(-eps)
+    Args:
+        cdf_p: the cdf of log(p/q)
+        cdf_q: the cdf of log(q/p)
+        quadrature: if False, using a FFT-based numerical tool to convert
+        characteristic functions back to cdf.
     """
+    if quadrature == False:
+        # Future work: convert characteristic functions to cdf using FFT.
+        return cdf_to_approxdp_fft(cdf_p,cdf_q, l=1e5)
+
     def trade_off(x):
         #x is e^epsilon
-        if take_log:
-            #print('take log input e^eps', x)
-            log_e = np.log(x)
-            #print('current eps', log_e)
-            result = cdf_p(log_e) + x*cdf_q(-log_e)
-            #print('current delta', 1-result)
-            return result
-    exp_eps = numerical_inverse(trade_off, [0, 1])
+        log_e = np.log(x)
+        # delta = 1 - result
+        result = cdf_p(log_e) + x*cdf_q(-log_e)
+        # print('eps in binary search',log_e, 'current delta', 1-result)
+        return result
+    exp_eps = numerical_inverse(trade_off, [0,1])
     def approxdp(delta):
-        return np.log(exp_eps(1 - delta))
+        t = exp_eps(1 - delta)
+        return np.log(t)
     return approxdp
 
-def cdf_to_approxdelta_nosym(cdf_p, cdf_q):
+def cdf_to_approxdp_fft(cdf_p,cdf_q, l=1e5):
     """
-    when epsilon is fixed, return delta
-    cdf_p and cdf_q is not the same
+    Compute the numerical inversion of characteristic functions through FFT.
+
+    Args:
+        cdf_p: the cdf list of log(p/q)
+        cdf_q: the cdf list of log(q/p)
+        l: we compute epsilon(delta) for epsilon ranges from [-l, l]
+
+    Return:
+        an epsilon(delta) query
     """
+
+    def approxdp(delta):
+        t1 = time.time()
+        cdf_p_list = cdf_p(l)
+        cdf_q_list = cdf_q(l)
+        t2 = time.time()
+        print('time in computing cdf', t2-t1)
+        # H is the number of point in fft, H = 2N-1
+        H = len(cdf_p_list)
+        mesh_size = 2.*l/H
+        n = int((H-1)/2)
+        b = l
+        f = lambda x: -b + mesh_size * x
+        eps_list= [f(i) for i in range(H)]
+        i = n-1
+        j = H-1
+        # Binary search to search a suitable epsilon.
+        t1 = time.time()
+        while i<j:
+            mid = int((i+j)/2)
+            eps = eps_list[mid]
+            result = cdf_p_list[int(mid)] + np.exp(eps) * cdf_q_list[int(H-mid-4)]
+            if abs(1-result)<0.1*delta:
+                return eps_list[mid]
+            if (1-result)>delta:
+                i = mid+1
+            else:
+                j = mid-1
+        t2 = time.time()
+        #print('time used in binary search', t2-t1)
+        if i<H-1 and eps_list[j]>0:
+            return eps_list[j]
+        raise ValueError("Mesh size is too large or l is smaller than the range of epsilon,"
+                         " please check the parameters N and l.")
+
+
+    return approxdp
+
+def cdf_to_approxdelta_fft(cdf_p, cdf_q, l =1e4):
+    """
+    Future work: Returns delta as a function of epsilon using FFT.
+
+    Args:
+        cdf_p: a list cdf of log(p/q)
+        cdf_q: the cdf of log(q/p)
+    """
+
     def approx_delta(eps):
+        cdf_p_list = cdf_p(l)
+        cdf_q_list = cdf_q(l)
+        if eps > l:
+            raise ValueError("Epsilon out of [-L,L] window, please check the parameters.")
+        H = len(cdf_p_list)
+        mesh_size = 2. * l / H
+        b = mesh_size * H / 2
+        f = lambda x: -b + mesh_size * x
+        eps_list = [f(i) for i in range(H)]
+        # idx is the first idx where eps_list[idx]> eps
+        idx = np.where(eps_list>eps)[0][0]
+        delta = 1-cdf_p_list[idx] - np.exp(eps_list[idx]) * cdf_q_list[int(H-idx-1)]
+        return delta
+    return approx_delta
 
 
-        # print('current eps', log_e)
+def cdf_to_approxdelta(cdf_p, cdf_q, quadrature=True):
+    """
+    Returns delta as a function of epsilon.
+
+    Args:
+        cdf_p: the cdf of log(p/q)
+        cdf_q: the cdf of log(q/p)
+        quadrature: if True, apply Gaussian quadrature for numerical inversion (converse
+        characteristic functions back to CDFs). Else, using FFT instead.
+
+    """
+    if quadrature == False:
+        return cdf_to_approxdelta_fft(cdf_p, cdf_q)
+
+    def approx_delta(eps):
 
         delta = 1-cdf_p(eps) - np.exp(eps) * cdf_q(-eps)
         return delta
     return approx_delta
-def old_cdf_to_approxdp_nosym(cdf_p,cdf_q,take_log = True):
-    """
-    when cdf is not symtric
-    """
-
-    def trade_off(threshold):
-        left = 0
-        right = np.exp(20) # the range of e^epsilon
-        mid = 5
-        while left<right and (right-left>1e-4):
-            cur_value = cdf_p(np.log(mid)) + mid * cdf_q(-np.log(mid))
-            if np.abs(cur_value - threshold) < 1e-5:
-                return mid
-            if (right-left<=1e-4):
-                return mid
-            #print('current delta', 1-cur_value)
-            if 1-cur_value > threshold:
-                left = mid
-            else:
-                right = mid
-
-            mid = (right + left)*1./2
-            #print('current search epsilon', np.log(mid))
-            #print('left', left, 'right', right)
-        return mid
-
-    def approxdp(delta):
-        print('required delta', delta)
-        return np.log(trade_off(delta))
-    return approxdp
 
 
-def cdf_to_approxdelta(cdf):
-    """
-    when epsilon is fixed, return delta
-    """
-    def approx_delta(eps):
 
-
-        # print('current eps', log_e)
-
-        delta = 1-cdf(eps) - np.exp(eps) * cdf(-eps)
-        return delta
-    return approx_delta
-def old_cdf_to_approxdp(cdf, take_log=True):
-    """
-    given cdf function, output (epsilon, delta)
-    when take_log is true, the cdf is for log(p/q)
-    when take_log is false, the cdf is for p/q
-    """
-    def trade_off(x):
-        #x is e^epsilon
-
-        if take_log:
-            #print('take log input e^eps', x)
-            log_e = np.log(x)
-            #print('current eps', log_e)
-
-            cur = cdf(log_e) + x*cdf(-log_e)
-            #print('current delta', 1-cur)
-        else:
-            return cdf(x) + x*cdf(1.0/x)
-    exp_eps = numerical_inverse(trade_off, [0, 1])
-
-    def approxdp(delta):
-        return np.log(exp_eps(1 - delta))
-
-
-    return approxdp
-
-def cdf_to_approxdp(cdf, take_log=True):
-    """
-    given cdf function, output (epsilon, delta)
-    when take_log is true, the cdf is for log(p/q)
-    when take_log is false, the cdf is for p/q
-    """
-
-
-    def trade_off(threshold):
-        left = 0
-        right = 100# the range of e^epsilon
-        mid = (left+right)*1.0/2
-        while left<right and (right-left>1e-4):
-
-            cur_value = cdf(np.log(mid)) + mid * cdf(-np.log(mid))
-            #print('cur delta before', 1-cur_value, 'cdf',cdf(np.log(mid)))
-            if np.abs(1-cur_value - threshold) < 1e-5:
-                return mid
-            if (right - left <= 1e-2):
-                return mid
-            #print('current delta', 1-cur_value)
-            if 1-cur_value > threshold:
-                left = mid
-            else:
-                right = mid
-
-            mid = (right + left)*1./2
-            print('current search epsilon', np.log(mid))
-            print('left', left, 'right', right)
-
-
-        print('no solution found', 'current delta',1-cur_value, 'required delta',threshold)
-
-    def approxdp(delta):
-        return np.log(trade_off(delta))
-
-
-    return approxdp
 def fdp_to_approxdp(fdp):
     # Check out Proposition 2.12 of Dong, Roth and Su
     # if given a symmetric fdp function f,
@@ -940,7 +919,7 @@ def fdp_to_approxdp(fdp):
     return approxdp
 
 
-def numerical_inverse(f, bounds=None):
+def numerical_inverse(f, bounds=[1, np.inf]):
     # of a scalar, monotonic function
     def inv_f(y):
         if bounds:
@@ -954,7 +933,8 @@ def numerical_inverse(f, bounds=None):
         def normal_equation(x):
             return abs(fun(x))
 
-        results = minimize_scalar(normal_equation, bounds=[1,np.inf], bracket=[1,2], tol=1e-6)
+        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-3)
+        #results = minimize_scalar(normal_equation, bounds=[1,np.inf], bracket=[1,2], tol=1e-3)
 
 
         #results = root_scalar(fun, options={'disp': False})
