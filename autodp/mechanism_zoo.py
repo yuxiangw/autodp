@@ -8,7 +8,6 @@ import numpy as np
 from autodp.autodp_core import Mechanism
 from autodp import rdp_bank, dp_bank, fdp_bank, utils, cdf_bank,phi_bank
 from autodp import transformer_zoo
-from sympy import *
 from scipy.stats import norm
 from scipy.optimize import minimize_scalar
 import numpy as np
