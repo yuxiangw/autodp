@@ -392,7 +392,6 @@ class StageWiseMechanism(Mechanism):
 
 
 
-<<<<<<< HEAD
 # # Example 1: Short implementation of noisy gradient descent mechanism as a composition of GMs
 # class NoisyGD_mech(GaussianMechanism):
 #     def __init__(self,sigma_list,name='NoisyGD'):
