@@ -7,7 +7,6 @@
 
 import numpy as np
 import math
-from sympy import *
 import time
 
 from scipy.fft import fft
