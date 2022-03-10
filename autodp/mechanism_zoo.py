@@ -11,6 +11,7 @@ from autodp import transformer_zoo
 from sympy import *
 from scipy.stats import norm
 from scipy.optimize import minimize_scalar
+import numpy as np
 
 
 # Example of a specific mechanism that inherits the Mechanism class
@@ -164,6 +165,8 @@ class RandresponseMechanism(Mechanism):
         if not RDP_off:
             new_rdp = lambda x: rdp_bank.RDP_randresponse({'p': p}, x)
             self.propagate_updates(new_rdp, 'RDP')
+            approxDP = lambda x: dp_bank.get_eps_randresp_optimal(p, x)
+            self.propagate_updates(approxDP, 'approxDP_func')
 
         if not phi_off:
             log_phi = lambda x: phi_bank.phi_rr_p({'p': p, 'q':1-p}, x)
@@ -231,6 +234,37 @@ class PureDP_Mechanism(Mechanism):
 
 
         #     self.propagate_updates(new_rdp, 'RDP')
+
+class zCDP_Mechanism(Mechanism):
+    def __init__(self,rho,xi=0,name='zCDP_mech'):
+        Mechanism.__init__(self)
+
+        self.name = name
+        self.params = {'rho':rho,'xi':xi}
+        new_rdp = lambda x: rdp_bank.RDP_zCDP(self.params, x)
+
+        self.propagate_updates(new_rdp,'RDP')
+
+
+class DiscreteGaussianMechanism(zCDP_Mechanism):
+    def __init__(self, sigma, name='DGM'):
+        zCDP_Mechanism.__init__(self, 0.5/sigma**2, name=name)
+
+        # This the the best implementation for DGM for now.
+        # The analytical formula for approximate-DP applies only to 1D outputs
+        # The exact eps,delta-DP and char function for the multivariate outputs
+        # requires a further maximization over neighboring datasets, which is unclear how to do
+
+class ExponentialMechanism(zCDP_Mechanism):
+    def __init__(self, eps, name='ExpMech'):
+        zCDP_Mechanism.__init__(self, eps**2/8, name=name)
+        # the zCDP bound is from here: https://arxiv.org/pdf/2004.07223.pdf
+
+        # TODO: Bounded range should imply a slightly stronger RDP that dominates the following
+        self.eps_pureDP = eps
+        self.propagate_updates(eps, 'pureDP')
+
+        # TODO: implement the f-function and phi-function representation from two logistic r.v.
 
 
 
@@ -358,6 +392,7 @@ class StageWiseMechanism(Mechanism):
 
 
 
+<<<<<<< HEAD
 # # Example 1: Short implementation of noisy gradient descent mechanism as a composition of GMs
 # class NoisyGD_mech(GaussianMechanism):
 #     def __init__(self,sigma_list,name='NoisyGD'):
@@ -407,6 +442,39 @@ class StageWiseMechanism(Mechanism):
 #     online_ngd = compose([online_ngd, mech_cur])
 #
 # # The above is quite general and can be viewed as a privacy accountant
+
+class NoisySGD_Mechanism(Mechanism):
+    def __init__(self, prob, sigma, niter, PoissonSampling=True, name='NoisySGD'):
+        Mechanism.__init__(self)
+        self.name = name
+        self.params = {'prob': prob, 'sigma': sigma, 'niter': niter,
+                       'PoissonSampling': PoissonSampling}
+
+        # create such a mechanism as in previously
+        subsample = transformer_zoo.AmplificationBySampling(PoissonSampling=PoissonSampling)
+        # by default this is using poisson sampling
+
+        mech = ExactGaussianMechanism(sigma=sigma)
+        prob = 0.01
+        # Create subsampled Gaussian mechanism
+        SubsampledGaussian_mech = subsample(mech, prob, improved_bound_flag=True)
+        # for Gaussian mechanism the improved bound always applies
+
+        # Now run this for niter iterations
+        compose = transformer_zoo.Composition()
+        mech = compose([SubsampledGaussian_mech], [niter])
+
+        # Now we get it and let's extract the RDP function and assign it to the current mech being constructed
+        rdp_total = mech.RenyiDP
+        self.propagate_updates(rdp_total, type_of_update='RDP')
+
+
+class NoisyGD_Mechanism(GaussianMechanism):
+    # With a predefined sequence of noise multipliers.
+    def __init__(self,sigma_list, name='NoisyGD'):
+        GaussianMechanism.__init__(self, sigma=np.sqrt(1/np.sum(1/sigma_list**2)), name=name)
+        self.params = {'sigma_list': sigma_list}
+
 
 
 class SubSampleGaussian_phi(Mechanism):

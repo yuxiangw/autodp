@@ -1,0 +1,46 @@
+# Continuous integration for AutoDP python using Bazel to build and test code.
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build-and-test:
+    name: "Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+
+    steps:
+    # Checks-out the repository under $GITHUB_WORKSPACE, which is the CWD for
+    # the rest of the steps
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+          python-version: ${{ matrix.python-version }}
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install pytype
+
+    # Caches and restores the bazel build directory.
+    - name: Cache bazel build results
+      uses: actions/cache@v2.0.0
+      env:
+        cache-name: bazel-cache
+      with:
+        path: ~/.cache/bazel
+        key: ${{ runner.os }}-${{ env.cache-name }}-${{ github.ref }}
+        restore-keys: |
+          ${{ runner.os }}-${{ env.cache-name }}-master
+    - name: Build the code
+      run: bazel build ...
+    - name: Test the code
+      run: bazel test --test_output=errors ...
+
+    - name: Type-Check
+      run: pytype -j auto -d import-error

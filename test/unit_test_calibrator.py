@@ -81,4 +81,7 @@ class TestGeneralizedMechanism(parameterized.TestCase):
 		autodp_value = _multi_para(eps=eps, delta=delta,coeff=coeff, params_name='sigma')
 		self.assertGreaterEqual(autodp_value, (1. - tol) * sigma)
 
+if __name__ == '__main__':
+    absltest.main()
+
 
