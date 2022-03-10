@@ -4,6 +4,11 @@ that keeps track the effects of a hetereogeneous sequence of randomized algorith
 
 In particular it supports amplification of RDP by subsampling without replacement and the amplification of RDP
 by poisson sampling, but unfortunately not (yet) together.
+
+
+* The RDP accountant API is deprecated.
+* All functionality of an RDP accountant can be achieved via the Mechanism API.
+
 """
 
 
@@ -68,58 +73,88 @@ def fast_subsampled_cgf_upperbound(func, mm, prob, deltas_local):
         return np.inf
     if mm == 1:
         return 0
-    secondterm = np.minimum(np.minimum((2) * np.log(np.exp(func(np.inf)) - 1)
-                                       + np.minimum(func(2), np.log(4)),
-                                       np.log(2) + func(2)),
-                            np.log(4) + 0.5 * deltas_local[int(2 * np.floor(2 / 2.0)) - 1]
-                            + 0.5 * deltas_local[int(2 * np.ceil(2 / 2.0)) - 1]
-                            ) + 2 * np.log(prob) + np.log(mm) + np.log(mm - 1) - np.log(2)
+
+    secondterm = 2 * np.log(prob) + + np.log(mm) + np.log(mm - 1) - np.log(2) \
+                  + np.mininum(np.log(4) + func(2.0) + np.log(1 - np.exp(-func(2.0))),
+                               func(2.0) + np.mininum(np.log(2),
+                                                      2 * (eps_inf + np.log(1 - np.exp(-eps_inf)))))
+
+    # secondterm = np.minimum(np.minimum((2) * np.log(np.exp(func(np.inf)) - 1)
+    #                                    + np.minimum(func(2), np.log(4)),
+    #                                    np.log(2) + func(2)),
+    #                         np.log(4) + 0.5 * deltas_local[int(2 * np.floor(2 / 2.0)) - 1]
+    #                         + 0.5 * deltas_local[int(2 * np.ceil(2 / 2.0)) - 1]
+    #                         ) + 2 * np.log(prob) + np.log(mm) + np.log(mm - 1) - np.log(2)
 
     if mm == 2:
         return utils.stable_logsumexp([0, secondterm])
 
-    # approximate the remaining terms using a geometric series
-    logratio1 = np.log(prob) + np.log(mm) + func(mm)
-    logratio2 = logratio1 + np.log(np.exp(func(np.inf)) - 1)
-    logratio = np.minimum(logratio1, logratio2)
-    if logratio1 > logratio2:
-        coeff = 1
-    else:
-        coeff = 2
+    # approximate the remaining terms using a geometric series or binomial series
+
+    log_exp_eps_minus_one = func(np.inf) + np.log(1 - np.exp(-func(np.inf)))
 
 
     if mm == 3:
-        return utils.stable_logsumexp([0, secondterm, np.log(coeff) + 3 * logratio])
+        return utils.stable_logsumexp([0, secondterm, (3 * (np.log(prob) + np.log(mm))
+                                                       + 2*func(mm)
+                                                       + np.minumum(np.log(2),
+                                                                    3 * log_exp_eps_minus_one))])
 
-    # Calculate the sum of the geometric series starting from the third term. This is a total of mm-2 terms.
-    if logratio < 0:
-        geometric_series_bound = np.log(coeff) + 3 * logratio - np.log(1 - np.exp(logratio)) \
-                                 + np.log(1 - np.exp((mm - 2) * logratio))
-    elif logratio > 0:
-        geometric_series_bound = np.log(coeff) + 3 * logratio + (mm-2) * logratio - np.log(np.exp(logratio) - 1)
-    else:
-        geometric_series_bound = np.log(coeff) + np.log(mm - 2)
+    logratio1 = np.log(prob) + np.log(mm) + func(mm)
+    logratio2 = logratio1 + log_exp_eps_minus_one
 
-    # we will approximate using (1+h)^mm
-    logh1 = np.log(prob) + func(mm - 1)
+    s, mag = utils.stable_log_diff_exp(1,logratio1)
+    s, mag2 = utils.stable_log_diff_exp(1, (mm-3)*logratio1)
+    remaining_terms1 = (np.log(2) + 3 * (np.log(prob) + np.log(mm)) + 2*func(mm)
+                        + mag2 - mag)
 
-    logh2 = logh1 + np.log(np.exp(func(np.inf)) - 1)
+    s, mag = utils.stable_log_diff_exp(1,logratio2)
+    s, mag2 = utils.stable_log_diff_exp(1, (mm-3)*logratio2)
 
-    binomial_series_bound1 = np.log(2) + mm * utils.stable_logsumexp_two(0, logh1)
-    binomial_series_bound2 = mm * utils.stable_logsumexp_two(0, logh2)
+    remaining_terms2 = (3 * (np.log(prob) + np.log(mm) + log_exp_eps_minus_one) + 2*func(mm)
+                        + mag2 - mag)
 
-    tmpsign, binomial_series_bound1 \
-        = utils.stable_sum_signed(True, binomial_series_bound1, False, np.log(2)
-                                  + utils.stable_logsumexp([0, logh1 + np.log(mm), 2 * logh1 + np.log(mm)
-                                                            + np.log(mm - 1) - np.log(2)]))
-    tmpsign, binomial_series_bound2 \
-        = utils.stable_sum_signed(True, binomial_series_bound2, False,
-                                  utils.stable_logsumexp([0, logh2 + np.log(mm), 2 * logh2 + np.log(mm)
-                                                          + np.log(mm - 1) - np.log(2)]))
+    return utils.stable_logsumexp([0, secondterm, np.minimum(remaining_terms1,remaining_terms2)])
 
-    remainder = np.min([geometric_series_bound, binomial_series_bound1, binomial_series_bound2])
-
-    return utils.stable_logsumexp([0, secondterm, remainder])
+    # logratio = np.minimum(logratio1, logratio2)
+    # if logratio1 > logratio2:
+    #     coeff = 1
+    # else:
+    #     coeff = 2
+    #
+    #
+    # if mm == 3:
+    #     return utils.stable_logsumexp([0, secondterm, np.log(coeff) + 3 * logratio])
+    #
+    # # Calculate the sum of the geometric series starting from the third term. This is a total of mm-2 terms.
+    # if logratio < 0:
+    #     geometric_series_bound = np.log(coeff) + 3 * logratio - np.log(1 - np.exp(logratio)) \
+    #                              + np.log(1 - np.exp((mm - 2) * logratio))
+    # elif logratio > 0:
+    #     geometric_series_bound = np.log(coeff) + 3 * logratio + (mm-2) * logratio - np.log(np.exp(logratio) - 1)
+    # else:
+    #     geometric_series_bound = np.log(coeff) + np.log(mm - 2)
+    #
+    # # we will approximate using (1+h)^mm
+    # logh1 = np.log(prob) + func(mm - 1)
+    #
+    # logh2 = logh1 + np.log(np.exp(func(np.inf)) - 1)
+    #
+    # binomial_series_bound1 = np.log(2) + mm * utils.stable_logsumexp_two(0, logh1)
+    # binomial_series_bound2 = mm * utils.stable_logsumexp_two(0, logh2)
+    #
+    # tmpsign, binomial_series_bound1 \
+    #     = utils.stable_sum_signed(True, binomial_series_bound1, False, np.log(2)
+    #                               + utils.stable_logsumexp([0, logh1 + np.log(mm), 2 * logh1 + np.log(mm)
+    #                                                         + np.log(mm - 1) - np.log(2)]))
+    # tmpsign, binomial_series_bound2 \
+    #     = utils.stable_sum_signed(True, binomial_series_bound2, False,
+    #                               utils.stable_logsumexp([0, logh2 + np.log(mm), 2 * logh2 + np.log(mm)
+    #                                                       + np.log(mm - 1) - np.log(2)]))
+    #
+    # remainder = np.min([geometric_series_bound, binomial_series_bound1, binomial_series_bound2])
+    #
+    # return utils.stable_logsumexp([0, secondterm, remainder])
 
 
 
@@ -211,7 +246,7 @@ class anaRDPacct:
         self.m_max = m_max # An upper bound of the quadratic dependence
         self.m_lin_max = m_lin_max # An upper bound of the linear dependence.
         self.verbose = verbose
-        self.approx = approx
+        self.approx = approx # If true, use the fast k-term approximation
         self.lambs = np.linspace(1, self.m, self.m).astype(int) # Corresponds to \alpha = 2,3,4,5,.... for RDP
 
         self.alphas = np.linspace(1, self.m, self.m).astype(int)
@@ -391,7 +426,7 @@ class anaRDPacct:
                 if results.success:
                     return results.fun
                 else:
-                    return None
+                    raise RuntimeError(f"Optimal RDP order not found: {results.message}")
                 #return fun(bestint)
 
             if bestint == 0:
@@ -410,7 +445,7 @@ class anaRDPacct:
                 # There are cases when certain \delta is not feasible.
                 # For example, let p and q be uniform the privacy R.V. is either 0 or \infty and unless all \infty
                 # events are taken cared of by \delta, \epsilon cannot be < \infty
-                return -1
+                return np.inf
 
     def compose_mechanism(self, func, coeff=1.0):
         self.flag = False
@@ -440,8 +475,24 @@ class anaRDPacct:
         self.RDP_inf += func(np.inf) * coeff
     #795010
     #imple 100
-    def compose_subsampled_mechanism(self, func, prob, coeff=1.0):
-        # This function is for subsample without replacements.
+    def compose_subsampled_mechanism(self, func, prob, coeff=1.0, improved_bound_flag=False):
+        """
+            # This function is for subsample without replacements
+        :param func:  RDP function of the mechanism before amplification by sampling
+        :param prob:  proportion of the data to sample
+        :param coeff: number of times the subsampled mechanism is being composed.
+        :param improved_bound_flag:
+            - If True, then it uses Theorem 27 of https://arxiv.org/pdf/1808.00087.pdf
+            - If False (default value), it uses Theorem 9 of https://arxiv.org/pdf/1808.00087.pdf
+            To qualify for the improved bound, the mechanism needs to have a pair of neighboring
+            datasets that is worst for all Renyi-divergence and Pearson-Vajda divergence;
+            Also, the RDP bound needs to be tight (see Definition 26 from the same paper).
+            Gaussian mechanism, Laplace mechanism and many others satisfy this condition.
+
+        :return:  nothing  (updates to the RDP accountant's attribute)
+        """
+
+        # (find a random subset of proportion prob)
         self.flag = False
         self.flag_subsample = True
         if (func, prob) in self.idxhash:
@@ -451,52 +502,88 @@ class anaRDPacct:
             # also update the integer CGFs
             self.RDPs_int += self.cache[(func, prob)] * coeff
         else:
-
             def cgf(x):
                 return x * func(x+1)
-            # we need forward differences of thpe exp(cgf)
-            # The following line is the numericall y stable way of implementing it.
-            # The output is in polar form with logarithmic magnitude
-            deltas, signs_deltas = utils.get_forward_diffs(cgf,self.m)
 
-            #deltas1, signs_deltas1 = get_forward_diffs_direct(func, self.m)
+            if not improved_bound_flag:
+                def subsample_func_int(x):
+                    # output the cgf of the subsampled mechanism
+                    mm = int(x)
+                    eps_inf = func(np.inf)
 
-            #tmp = deltas-deltas1
+                    moments_two = 2 * np.log(prob) + utils.logcomb(mm,2) \
+                                  + np.minimum(np.log(4) + func(2.0) + np.log(1-np.exp(-func(2.0))),
+                                               func(2.0) + np.minimum(np.log(2),
+                                                            2 * (eps_inf+np.log(1-np.exp(-eps_inf)))))
+                    moment_bound = lambda j: np.minimum(j * (eps_inf + np.log(1-np.exp(-eps_inf))),
+                                                        np.log(2)) + cgf(j - 1) \
+                                             + j * np.log(prob) + utils.logcomb(mm, j)
+                    moments = [moment_bound(j) for j in range(3, mm + 1, 1)]
+                    return np.minimum((x-1)*func(x), utils.stable_logsumexp([0,moments_two] + moments))
+            else:
+                # we need forward differences of exp(cgf)
+                # The following line is the numerically stable way of implementing it.
+                # The output is in polar form with logarithmic magnitude
+                deltas, signs_deltas = utils.get_forward_diffs(cgf, self.m)
 
-            self.deltas_cache[(func,prob)] = [deltas,signs_deltas]
+                #deltas1, signs_deltas1 = get_forward_diffs_direct(func, self.m)
 
-            def subsample_func_int(x):
-                # This function evaluates teh CGF at alpha = x, i.e., lamb =  x- 1
-                deltas_local, signs_deltas_local = self.deltas_cache[(func,prob)]
-                if np.isinf(func(x)):
-                    return np.inf
+                #tmp = deltas-deltas1
 
-                mm = int(x)
+                self.deltas_cache[(func,prob)] = [deltas,signs_deltas]
 
-                fastupperbound = fast_subsampled_cgf_upperbound(func, mm, prob, deltas_local)
-                fastupperbound2 = general_upperbound(func, mm, prob)
-                if self.approx ==True:
-                    if fastupperbound2 <0:
-                        print('general rdp is negative',x)
-                    return fastupperbound2
+                def subsample_func_int(x):
+                    # This function evaluates teh CGF at alpha = x, i.e., lamb =  x- 1
+                    deltas_local, signs_deltas_local = self.deltas_cache[(func,prob)]
+                    if np.isinf(func(x)):
+                        return np.inf
 
-                if mm <= self.alphas[-1]: # compute the bound exactly. Requires book keeping of O(x^2)
+                    mm = int(x)
+                    eps_inf = func(np.inf)
 
-                    moments = [ np.minimum(np.minimum((j)*np.log(np.exp(func(np.inf))-1) + np.minimum(cgf(j-1),np.log(4)),
-                                                      np.log(2) + cgf(j-1)),
-                                           np.log(4) + 0.5*deltas_local[int(2*np.floor(j/2.0))-1]
-                                           + 0.5*deltas_local[int(2*np.ceil(j/2.0))-1]) + j*np.log(prob)
-                                +self.logBinomC[int(mm), j] for j in range(2,int(mm+1),1)]
+                    moments_two = 2 * np.log(prob) + utils.logcomb(mm, 2) \
+                                  + np.minimum(
+                        np.log(4) + func(2.0) + np.log(1 - np.exp(-func(2.0))),
+                        func(2.0) + np.minimum(np.log(2),
+                                               2 * (eps_inf + np.log(1 - np.exp(-eps_inf)))))
 
-                    return np.minimum(fastupperbound, utils.stable_logsumexp([0]+moments))
-                elif mm <= self.m_lin_max:  # compute the bound with stirling approximation. Everything is O(x) now.
-                    moment_bound = lambda j: np.minimum(j * np.log(np.exp(func(np.inf)) - 1)
-                                                        + np.minimum(cgf(j - 1), np.log(4)), np.log(2)
-                                                        + cgf(j - 1)) + j * np.log(prob) + utils.logcomb(mm, j)
-                    moments = [moment_bound(j) for j in range(2,mm+1,1)]
-                    return np.minimum(fastupperbound, utils.stable_logsumexp([0]+ moments))
-                else: # Compute the O(1) upper bound
-                    return fastupperbound
+                    moment_bound = lambda j: np.minimum(np.log(4) + 0.5*deltas_local[int(2*np.floor(j/2.0))-1]
+                                                        + 0.5*deltas_local[int(2*np.ceil(j/2.0))-1],
+                                                        np.minimum(j * (eps_inf + np.log(1 - np.exp(-eps_inf))),
+                                                                   np.log(2))
+                                                        + cgf(j - 1)) \
+                                             + j * np.log(prob) + utils.logcomb(mm, j)
+
+                    moment_bound_linear = lambda j: np.minimum(j * (eps_inf + np.log(1-np.exp(-eps_inf))),
+                                                        np.log(2)) + cgf(j - 1) \
+                                             + j * np.log(prob) + utils.logcomb(mm, j)
+
+                    fastupperbound = fast_subsampled_cgf_upperbound(func, mm, prob, deltas_local)
+
+                    if mm <= self.alphas[-1]: # compute the bound exactly. Requires book keeping of O(x^2)
+                        #
+                        # moments = [ np.minimum(np.minimum((j)*np.log(np.exp(func(np.inf))-1) + np.minimum(cgf(j-1),np.log(4)),
+                        #                                   np.log(2) + cgf(j-1)),
+                        #                        np.log(4) + 0.5*deltas_local[int(2*np.floor(j/2.0))-1]
+                        #                        + 0.5*deltas_local[int(2*np.ceil(j/2.0))-1]) + j*np.log(prob)
+                        #             +self.logBinomC[int(mm), j] for j in range(2,int(mm+1),1)]
+                        moments = [moment_bound(j) for j in range(3, mm + 1, 1)]
+                        if mm == 50:
+                            print('moments', moments)
+                        print('current alpha', mm, 'rdp',utils.stable_logsumexp([0, moments_two] + moments) )
+                        return np.minimum(fastupperbound, utils.stable_logsumexp([0, moments_two] + moments))
+                    elif mm <= self.m_lin_max:  # compute the bound with stirling approximation. Everything is O(x) now.
+                        # moment_bound = lambda j: np.minimum(j * np.log(np.exp(func(np.inf)) - 1)
+                        #                                     + np.minimum(cgf(j - 1), np.log(4)), np.log(2)
+                        #                                     + cgf(j - 1)) + j * np.log(prob) + utils.logcomb(mm, j)
+                        # moments = [moment_bound(j) for j in range(2,mm+1,1)]
+
+
+                        moments = [moment_bound_linear(j) for j in range(3, mm + 1, 1)]
+
+                        return np.minimum(fastupperbound, utils.stable_logsumexp([0, moments_two] + moments))
+                    else: # Compute the O(1) upper bound
+                        return fastupperbound
 
 
 
@@ -517,9 +604,9 @@ class anaRDPacct:
                     return np.minimum(epsinf, subsample_func_int(x) / (x-1) )
                 xc = math.ceil(x)
                 xf = math.floor(x)
-                return np.minimum(
-                    epsinf,
-                    ((x-xf)*subsample_func_int(xc) + (1-(x-xf))*subsample_func_int(xf)) / (x-1)
+                return np.min(
+                    [epsinf,func(x),
+                     ((x-xf)*subsample_func_int(xc) + (1-(x-xf))*subsample_func_int(xf)) / (x-1)]
                 )
 
 
@@ -546,38 +633,8 @@ class anaRDPacct:
         eps, delta = subsample_epsdelta(func(np.inf), 0, prob)
         self.RDP_inf += eps * coeff
 
-
-            #     mm = np.max(self.alphas)
-            #
-            #     jvec = np.arange(2, mm+1)  #
-            #     logterm3plus = np.zeros_like(results)
-            #     for j in jvec:
-            #         logterm3plus[j-2] = (np.minimum(np.minimum(j * np.log(np.exp(func(np.inf)) - 1)
-            #                                                    + np.minimum(np.log(4),cgf(j-1)), np.log(2) + cgf(j-1)),
-            #                                         np.log(4) + 0.5 * deltas[int(2 * np.floor(j / 2.0))-1]
-            #                                         + 0.5 * deltas[int(2 * np.ceil(j / 2.0))-1])
-            #                              + j * np.log(prob))
-            #
-            #     for alpha in range(2, mm+1):
-            #         if np.isinf(logterm3plus[alpha-1]):
-            #             results[alpha-1] = np.inf
-            #         else:
-            #             tmp = utils.stable_logsumexp(logterm3plus[0:alpha-1] + self.logBinomC[alpha, 2:(alpha+1)])
-            #             results[alpha-1] = utils.stable_logsumexp_two(0, tmp) / (1.0*alpha-1)
-            #
-            #     results[0] = results[1] # Provide the trivial upper bound of RDP at alpha = 1 --- the KL privacy.
-            #
-            #     self.cache[(func,prob)] = results # save in cache
-            # self.RDPs_int += results
-            #
-            # # For debugging: The following 'results1' should be the same as 'results' above.
-            # # results1 = np.zeros_like(self.RDPs_int, float)
-            # # for j in range(self.m):
-            # #     results1[j] = subsample_func(j+1)
-            #
-            # eps, delta = subsample_epsdelta(func(np.inf), 0, prob)
-            # self.RDP_inf += eps
-
+    def compose_subsampled_mechanisms_lowerbound(self, func, prob, coeff=1.0):
+        self.compose_poisson_subsampled_mechanisms(func, prob, coeff=coeff)
 
     def compose_poisson_subsampled_mechanisms(self, func, prob, coeff=1.0):
         # This function implements the lower bound for subsampled RDP.
@@ -633,6 +690,8 @@ class anaRDPacct:
                     return np.inf
                 if prob == 1.0:
                     return func(x)
+                if prob == 0:
+                    return 0
 
                 epsinf, tmp = subsample_epsdelta(func(np.inf),0,prob)
 
@@ -731,6 +790,10 @@ class anaRDPacct:
 
 
             def subsample_func(x): # linear interpolation upper bound
+                if prob == 0:
+                    return 0
+                if prob == 1.0:
+                    return func(x)
                 epsinf, tmp = subsample_epsdelta(func(np.inf),0,prob)
 
                 if np.isinf(x):
