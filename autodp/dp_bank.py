@@ -129,3 +129,20 @@ def get_eps_randresp(p,delta):
     func = lambda x: rdp_bank.RDP_randresponse({'p':p},x)
     return get_eps_rdp(func, delta)
 
+
+
+def get_eps_randresp_optimal(p,delta):
+    assert(delta >= 0)
+    if p<0.5:
+        p = 1-p
+
+    if p==0 or p==1:
+        return np.inf
+
+    eps_max = np.log(p) - np.log(1-p)
+    if delta == 0:
+        return eps_max
+    elif delta >= 2*p - 1:
+        return 0.0
+    else:
+        return np.log(p-delta) - np.log(1 - p)

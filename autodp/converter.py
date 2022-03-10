@@ -654,6 +654,8 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
                 return np.log(1-fdp(0))
             elif logx == 0:  # x == 1
                 return 1.0
+            else:
+                return np.log(1-fdp(np.exp(logx)))
 
         def fun2(logx):
             assert(logx <= 0)

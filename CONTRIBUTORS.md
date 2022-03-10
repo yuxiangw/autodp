@@ -7,6 +7,7 @@ Contributors of AutoDP
 * [Yu-Xiang Wang](https://github.com/yuxiangw/)
 * [Borja Balle](https://borjaballe.github.io/)
 * [Yuqing Zhu](https://github.com/jeremy43)
+* [Stefan Mellem](https://github.com/samellem)
 
 ### Contributors
 
