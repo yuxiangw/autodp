@@ -8,10 +8,7 @@ cdf_quad: Implement Levy theorem using Gaussian quadratures (recommend).
 cdf_fft: Numerical inversion through FFT (see https://www.tandfonline.com/doi/abs/10.1080/03461238.1975.10405087).
 """
 import numpy as np
-import math
 import time
-from scipy.stats import norm
-from scipy.integrate import quad
 import scipy.integrate as integrate
 from scipy.fft import fft
 
