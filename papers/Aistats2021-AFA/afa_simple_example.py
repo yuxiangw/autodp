@@ -24,10 +24,12 @@ import time
 
 ## Example 1:  Composition on Gaussian mechanisms.
 doc = {}
-delta = 1e-6
+delta = 1e-10
 # the number of compositions
-klist = [80 * i for i in range(2, 15)][3:]
-for sigma in [30, 60]:
+#klist = [80 * i for i in range(2, 15)][3:]
+klist =[1]
+#for sigma in [30, 60]:
+for sigma in [50, 60]:
     # epsilon computed through RDP
     eps_rdp = []
     # Analytical Gaussian
@@ -61,6 +63,9 @@ for sigma in [30, 60]:
         eps_rdp.append(composed_mech_rdp.get_approxDP(delta))
         eps_exact.append(composed_mech_exact.get_approxDP(delta))
         eps_phi.append(eps_afa)
+        print('rdp', eps_rdp)
+        print('phi', eps_phi)
+        print('exact', eps_exact)
 
     cur_result = {}
     cur_result['rdp'] = eps_rdp

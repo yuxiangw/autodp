@@ -41,14 +41,16 @@ class GaussianMechanism(Mechanism):
             """
             Apply phi function to analyze Gaussian mechanism.
             the CDF of privacy loss R.V. is computed using an integration (see details in cdf_bank) through Levy Theorem.
-            If self.exactPhi = True, the algorithm provides an exact characterization.
             """
-            self.exactPhi = True
             log_phi = lambda x: phi_bank.phi_gaussian({'sigma': sigma}, x)
             self.log_phi_p = self.log_phi_q = log_phi
-
             # self.cdf tracks the cdf of log(p/q) and the cdf of log(q/p).
             self.propagate_updates((log_phi, log_phi), 'log_phi')
+
+            # Propagate the pdf of dominating pairs.
+            def pdf_p(x): return norm.pdf(x, scale=sigma**2)
+            def pdf_q(x): return norm.pdf((x-1.), scale=sigma**2)
+            self.propagate_updates((pdf_p, pdf_q), 'pdf')
             """
             Moreover, we know the closed-form expression of the CDF of the privacy loss RV
                privacy loss RV distribution l=log(p/q) ~ N(1/2\sigma^2, 1/sigma^2)

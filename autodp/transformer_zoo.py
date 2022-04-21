@@ -237,6 +237,99 @@ class ComposeGaussian(Composition):
 
 
 
+
+
+class AmplificationBySampling_pld(Transformer):
+    def __init__(self, PoissonSampling=True, neighboring='add_only'):
+        # Amplification By Sampling rule for PLD formalism
+        # By default, poisson sampling is used:  sample a dataset by selecting each data point iid
+        # If PoissonSampling is set to False, then it chooses a random subset with size prob * n
+        # Compared to other amplification rules (e.g., rules in RDP), this rule treats neighboring relationship separately:
+        # this amplification rule is for either "add_only" or "remove_only" relationship.
+        Transformer.__init__(self)
+        if PoissonSampling:
+            self.name = 'PoissonSample'
+        else:
+            self.name = 'Subsample'
+        self.PoissonSampling = PoissonSampling
+        self.unary_operator = True
+        self.preprocessing = True # Sampling happen before the mechanism is applied
+        self.neighboring = neighboring
+
+
+        # Update the function that is callable
+        self.transform = self.amplify
+
+    def amplify(self, mechanism, prob):
+        # If the neighboring relationship is adding, the dominating distribution will be (P, (1-gamma)P + gamma*Q)
+        # If the neighboring relationship is removing, the dominating distribution will be ( (1-gamma)*P + gamma*Q, P)
+
+        newmech = Mechanism()
+
+        # privacy amplification via approx-dp
+
+        # Amplification of RDP
+        # propagate to approxDP as well.
+        # amplification by sampling for adding relationship is compatible with the base mechanism that has adding or
+        # add/remove or replace relationship.
+        if self.neighboring == 'add_only':
+            assert  mechanism.neighboring != 'remove_only', "mechanism's neighboring relationship notion of DP is " \
+                                                   "incompatible with Privacy Amplification by  sampling"
+            # take care of the add neighbor and remove neighbor
+            # If not, there actually isn't a way to convert it from replace-one notation,
+            # unless a "dummy" user exists in the space.
+            newmech.neighboring = 'add_only'
+            new_pdf_p = lambda x: mechanism.pdf_p(x)
+            new_pdf_q = lambda x: (1. - prob) * mechanism.pdf_p(x) + prob * mechanism.pdf_q(x)
+
+        else:
+            assert mechanism.neighboring != 'add_only', "mechanism's neighboring relationship notion of DP is " \
+                                                   "incompatible with Privacy Amplification "
+            newmech.neighboring ='remove_only'
+            if self.PoissonSampling:
+                new_pdf_p = lambda x: (1. - prob) * mechanism.pdf_q(x) + prob * mechanism.pdf_p(x)
+                new_pdf_q = lambda x: mechanism.pdf_q(x)
+            else:
+                # subset sampling
+                new_pdf_p = lambda x: (1. - prob) * mechanism.pdf_p(x) + prob * mechanism.pdf_q(x)
+                new_pdf_q = lambda x: mechanism.pdf_p(x)
+        # convert pdf to phi
+        newmech.propagate_updates([new_pdf_p, new_pdf_q], 'pdf')
+
+        if prob == 0:
+            new_approxDP = lambda delta:0
+        else:
+            new_approxDP = lambda delta: np.log(1 + prob*(np.exp(mechanism.approxDP(delta/prob))-1))
+        newmech.approxDP = new_approxDP
+
+
+        # update CDF
+        # Do we need to apply propagate_updates for cdf?
+
+        #TODO: Implement the amplification of f-DP
+        # propagate to approxDP, or simply get the f-DP from approximate-DP.
+
+
+        # book keeping
+        key = self.name + '_' + str(prob)
+        num = 0
+        newname = self.name
+
+        # the following handles the case when key is already in the params
+        while key in mechanism.params:
+            num = num+1
+            newname = self.name+str(num)
+            key = newname + '_' + str(prob)
+
+        newmech.name = newname +':'+mechanism.name
+        newmech.params = mechanism.params
+        new_params = {newname:prob}
+        newmech.params.update(new_params)
+
+        return newmech
+
+
+
 class AmplificationBySampling(Transformer):
     def __init__(self, PoissonSampling=True):
         # By default, poisson sampling is used:  sample a dataset by selecting each data point iid

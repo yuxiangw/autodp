@@ -11,6 +11,30 @@ import numpy as np
 import time
 import scipy.integrate as integrate
 from scipy.fft import fft
+from scipy.stats import norm, laplace
+
+
+def cdf_gaussian(params, x):
+    """
+    The cdf of a Gaussian distribution evaluated at the position x
+
+    params: params['sigma'] denotes the noisy scale.
+    x: evaluates the cdf at x.
+    """
+    sigma = params['sigma']
+    mean = params['mean']
+    return norm.cdf(x/sigma)
+
+
+
+def cdf_laplace(params, x):
+    """
+    The cdf of a Laplace distribution evaluated at the position x
+
+    params:
+    """
+    b = params['b']
+    return laplace.cdf(x/b)
 
 
 def cdf_approx_fft(log_phi, L, N = 5e6):

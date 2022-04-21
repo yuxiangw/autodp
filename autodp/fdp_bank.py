@@ -79,7 +79,6 @@ def log_one_minus_fdp_gaussian(params, logfpr):
     sigma = params['sigma']
     # assert(sigma > 0)
     assert(sigma >= 0)
-    print('logfpr', logfpr)
     if sigma == 0:
         return 0
     else:

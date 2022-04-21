@@ -5,6 +5,7 @@
 import numpy as np
 from autodp import utils
 import math
+import scipy.integrate as integrate
 from autodp import rdp_bank
 from scipy.optimize import minimize_scalar, root_scalar
 from autodp import utils
@@ -659,7 +660,10 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
         def fun2(logx):
             assert(logx <= 0)
-            grad_l, grad_h = fdp_grad(np.exp(logx))
+            if np.isneginf(logx):
+                grad_l, grad_h = fdp_grad(0)
+            else:
+                grad_l, grad_h = fdp_grad(np.exp(logx))
             log_neg_grad_l = np.log(-grad_l)
             log_neg_grad_h = np.log(-grad_h)
 
@@ -694,35 +698,46 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             else:
                 return min(abs(high),abs(low))
 
+        def normal_equation_loglogx(loglogx):
+            logx = np.exp(loglogx)
+            return normal_equation(logx)
 
         # find x such that y = 1-\delta
         tmp = fun1(np.log(1 - delta))
         if abs(tmp) < 1e-5:
-            bound1 = np.log(-tmp - tmp ** 2 / 2 - tmp ** 3 / 6)
+            bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
         else:
-            bound1 = np.log(1 - np.exp(fun1(np.log(1 - delta))))
+            bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
         #results = minimize_scalar(normal_equation, bounds=[-np.inf,0], bracket=[-1,-2])
         results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
                                   options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
         if results.success:
             if abs(results.fun) > 1e-4 and abs(results.x)>1e-10:
-                print("Warning: 'find_logx' fails to find the tangent line.")
-                return None
+                # This means that we hit xatol (x is close to 0, but
+                # the function value is not close to 0) In this case let's do an even larger search.
+                raise RuntimeError("'find_logx' fails to find the tangent line.")
             else:
                 return results.x
         else:
-            return None
+            raise RuntimeError(f"'find_logx' fails to find the tangent line: {results.message}")
 
     def approxdp(delta):
-        logx = find_logx(delta)
-        log_one_minus_f = fun1(logx)
-        # log_neg_grad_l, log_neg_grad_h = fun2(logx)
-        s, mag = utils.stable_log_diff_exp(log_one_minus_f,np.log(delta))
-        eps = mag - logx
-        if eps < 0:
+        if delta == 0:
+            logx = -np.inf
+            log_neg_grad_l, log_neg_grad_h = fun2(logx)
+            return log_neg_grad_l
+        elif delta == 1:
             return 0.0
         else:
-            return eps
+            logx = find_logx(delta)
+            log_one_minus_f = fun1(logx)
+            # log_neg_grad_l, log_neg_grad_h = fun2(logx)
+            s, mag = utils.stable_log_diff_exp(log_one_minus_f,np.log(delta))
+            eps = mag - logx
+            if eps < 0:
+                return 0.0
+            else:
+                return eps
 
     #approxdp(1e-3)
 
@@ -767,6 +782,14 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
 
 
+def cdf_to_dis_phi_p(cdf_p):
+    """
+    # TODO: Convert cdf_p to the discrete phi-function. The algorithm is based on Gopi et al.
+
+    Truncation parameter L, the composed PLD will be supported in [-L, L].
+    :param cdf_p:
+    :return:
+    """
 
 
 def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
@@ -788,7 +811,7 @@ def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
         log_e = np.log(x)
         # delta = 1 - result
         result = cdf_p(log_e) + x*cdf_q(-log_e)
-        # print('eps in binary search',log_e, 'current delta', 1-result)
+        print('eps in binary search',log_e, 'current delta', 1-result)
         return result
     exp_eps = numerical_inverse(trade_off, [0,1])
     def approxdp(delta):
@@ -845,6 +868,28 @@ def cdf_to_approxdp_fft(cdf_p,cdf_q, l=1e5):
 
 
     return approxdp
+
+
+def pdf_to_phi(p, q, t):
+    """
+    Given a pair of dominating pair distribution p and q, returns the log phi function of log(p/q) and loq(q/p).
+
+    Args:
+        p,q: the pdf of dominating pair distribution
+    """
+    # compute the log_phi np.exp(1.j *t*log(p(o)/q(o)))
+    def _inte(y):
+        o = y*1.0/(1-y**2)
+        s = np.exp(1.0j * np.log(p(o)/q(o)) * t)*p(o)
+        # Improve the stability (NaN is close to zero).
+        s[np.isnan(s)] = 0
+        return s
+    # exp_term = lambda o: np.exp(1.0j * np.log(p(o)/q(o)) * t)*p(o)
+    inte_f_p = lambda y: _inte(y) * (1 + y ** 2) / ((1 - y ** 2) ** 2)
+    # applies gaussian quadrature to compute the expectation
+    res_p = integrate.quadrature(inte_f_p, -1.0, 1.0, tol=1e-15, rtol=1e-15, maxiter=100)
+    return np.log(res_p[0])
+
 
 def cdf_to_approxdelta_fft(cdf_p, cdf_q, l =1e4):
     """
@@ -940,7 +985,7 @@ def numerical_inverse(f, bounds=[1, np.inf]):
         def normal_equation(x):
             return abs(fun(x))
 
-        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-3)
+        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-10)
         #results = minimize_scalar(normal_equation, bounds=[1,np.inf], bracket=[1,2], tol=1e-3)
 
 

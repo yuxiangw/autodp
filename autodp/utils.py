@@ -272,3 +272,5 @@ def RDP_linear_interpolation(func,x):
         epsinf,
         ((x - xf) * (xc-1)* func(xc) + (1 - (x - xf)) * (xf-1)*func(xf)) / (x - 1)
     )
+
+
