@@ -11,7 +11,7 @@ the per-instance RDP associated with two given data sets.
 
 import numpy as np
 import math
-from autodp import utils
+from autodp import utils,logcomb, stable_logsumexp
 
 
 def _log1mexp(x):
@@ -331,46 +331,53 @@ def RDP_svt_laplace(params, alpha):
 def RDP_gaussian_svt_cgreater1(params, alpha):
     """
         This is for gaussian-svt with c>1
-        k is the maximum length before svt stops
-        :param params:
-        :param alpha:
-        :return:
-        """
-    sigma = params['sigma']
+        k:the maximum length before svt stops
+        sigma: noise added to the threshold divide by L2 sensitivity. 
+		sigma_nu: noise added to the query divide by 2 * L2 sensitivity.
+        c: the cut-off parameter in SVT.
+    """
+    sigma_rho = params['sigma']
+    sigma_nu = params['sigma_nu']
     c = max(params['c'], 1)
     k = params['k']  # the algorithm stops either k is achieved or c is achieved
-    rdp_rho = 0.5 / (sigma ** 2) * alpha
-    c_log_n_c = c * np.log(k / c)
-    ret_rdp = c_log_n_c * 1.0 / (alpha - 1) + rdp_rho * (c + 1)
+    rdp_rho = 0.5 / (sigma_rho ** 2) * alpha
+    rdp_nu = 0.5 / (sigma_nu ** 2) * alpha
+    #c_log_n_c = c * np.log(k / c) # approximate bound
+    log_comb = [logcomb(k, i) for i in range(c+1)]
+    log_sum_comb = stable_logsumexp(log_comb)
+    ret_rdp = log_sum_comb * 1.0 / (alpha - 1) + rdp_rho + rdp_nu * c
     return ret_rdp
+
 
 
 def RDP_gaussian_svt_c1(params, alpha):
     """
     This is for gaussian-svt with c=1
     k is the maximum length before svt stops
-    :param params:
+    sigma: noise added to the threshold, divided by L2 sensitivity.
+	sigma_nu: noise added to the query, divided by the 2*L2 sensitivity.
     :param alpha:
     :return:
     """
     sigma = params['sigma']
+    sigma_nu = params['sigma_nu']
     k = params['k']
     margin = params['margin']
-    c = 1
-
-
+    
     rdp_rho = 0.5 / (sigma ** 2) * alpha
-
-    ret_rdp = np.log(k) / (alpha - 1) + rdp_rho * 2
+    rdp_nu = 0.5 / (sigma **2 ) * alpha
+    ret_rdp = np.log(k) / (alpha - 1) + rdp_rho + rdp_nu
     if alpha == 1:
-        return ret_rdp * c
-    ################ Implement corollary 15 in NeurIPS-20
+        return ret_rdp
+    if sigma * np.sqrt(3) > sigma_nu * 2:
+        return ret_rdp
+    # The code below Implements Proposition 10 in NeurIPS-20 with gamma=2, which requires
+	# (1) sigma_nu * 2*L2> sqrt{3}sigma_rho *L2 (2) queries are non-negative.
     inside_part = np.log(2 * np.sqrt(3) * math.pi * (1 + 9 * margin ** 2 / (sigma ** 2)))
     moment_term = utils.stable_logsumexp_two(0, inside_part + margin ** 2 * 1.0 / (sigma ** 2))
     moment_term = moment_term / (2.0 * (alpha - 1))
-    moment_based = moment_term + rdp_rho * 2
-
-    return min(moment_based, ret_rdp) * c
+    moment_based = moment_term + rdp_rho * 2 + rdp_nu 
+    return min(moment_based, ret_rdp) 
 
 
 
