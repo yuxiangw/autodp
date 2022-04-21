@@ -85,22 +85,33 @@ def get_eps_ana_gaussian(sigma, delta):
     else:
         raise RuntimeError(f"Failed to find epsilon: {results.flag}")
 
-def eps_generalized_gaussian(x, sigma, delta,k, c, c_tilde):
+def eps_generalized_gaussian(params, delta):
     """
     submodule for generalized SVT with Gaussian noise
     we want to partition c into [c/c'] parts, each part using (k choose c')
     need to check whether (k choose c') > log(1/delta')
     k is the maximam number of queries to answer for each chunk
-    x is log delta for each chunk, it needs to be negative
     :param x:
     :param sigma:
     :param delta:
     :return:
     """
+    sigma = params['sigma']
+    k = params['k']
+    c = params['c']
+    # delta' (delta1) is the delta budget for each chunk.
+    c_tilde = int(np.sqrt(c))
+    # divide half of the delta budget into c_tilde chunks, x is log delta for each chunk, it needs to be negative.
+    x = np.log(delta/(2 * c_tilde))
     acct = dp_acct.DP_acct()
-    per_delta = np.exp(x) # per_delta for each c' chunk
     coeff = comb(k,c_tilde)
+    # Find a proper per delta such that c_tilde * per_delta < delta and (k choose c') > log(1/per_delta)
+    per_delta = min( 0.5 /coeff, delta/(2*c_tilde))
+    x = np.log(per_delta)
+    if per_delta > 1.0/(coeff):
+        print('per delta', per_delta, 'coeff', coeff, 'k', k, 'c', c)
     assert per_delta < 1.0/(coeff)
+
     #compute the eps per step with 1/(sigma_1**2) + sqrt(2/simga_1**2 *(log k + log(1/epr_delta)))
     # compose eps for each chunk
     while c:

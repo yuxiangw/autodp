@@ -7,7 +7,7 @@ from autodp.transformer_zoo import Composition
 import matplotlib.pyplot as plt
 from scipy.stats import norm, laplace
 from scipy.special import comb
-import matplotlib.font_manager as fm
+#import matplotlib.font_manager as fm
 from autodp.mechanism_zoo import ExactGaussianMechanism, PureDP_Mechanism,SubsampleGaussianMechanism, GaussianMechanism, ComposedGaussianMechanism,GaussianSVT_Mechanism, NoisyScreenMechanism
 from autodp.transformer_zoo import Composition, AmplificationBySampling
 
@@ -26,6 +26,7 @@ To align variance between Gaussian-bassed and Laplace-based approaches, we set s
 delta = 1e-6
 lambda_rho = 120
 lambda_nu = 240
+# Under this setting, sigma_1 / L2 sensitivity = sigma_2 /2 * L2 sensitivity
 sigma_1 = lambda_rho*np.sqrt(2)
 sigma_2 = 2*sigma_1
 eps_1 = 1.0 / lambda_rho
@@ -102,11 +103,12 @@ def exp_2a():
 
             # stage-wise generalized SVT, k is the maximum length of each chunk
             k = int(idx / np.sqrt(count_gau))
-            generalized_mech = StageWiseMechanism({'sigma':sigma_1,'k':k, 'c':count_gau})
+            # assume sensitivity is 1, sigma_nu denotes noise add to query / 2
+            generalized_mech = StageWiseMechanism({'sigma':sigma_1,'k':k, 'c':count_gau, 'delta':delta})
             eps_kov.append(generalized_mech.get_approxDP(delta))
 
             # Gaussian-SVT c>1 with RDP, k is the total length before algorithm stops
-            gaussianSVT_c = GaussianSVT_Mechanism({'sigma':sigma_1,'k':idx, 'c':count_gau}, rdp_c_1=False)
+            gaussianSVT_c = GaussianSVT_Mechanism({'sigma':sigma_1,'sigma_nu':sigma_1,'k':idx, 'c':count_gau}, rdp_c_1=False)
             eps_g.append(gaussianSVT_c.get_approxDP(delta))
 
             #Gaussian-SVT with c=1, we use average_k as the approximate maximum length of each chunk, margin is used in Proposition 10
@@ -114,6 +116,7 @@ def exp_2a():
             params_SVT = {}
             params_SVT['k'] = average_k
             params_SVT['sigma'] = sigma_1
+            params_SVT['sigma_nu'] = sigma_1
             params_SVT['margin'] = margin
             per_gaussianSVT_mech = GaussianSVT_Mechanism(params_SVT)
             gaussianSVT_mech = compose([per_gaussianSVT_mech],[max(count_gau, 1)])
@@ -129,7 +132,7 @@ def exp_2a():
             'weight': 'bold',
             'size': 18}
 
-    props = fm.FontProperties(family='Gill Sans', fname='/Library/Fonts/GillSans.ttc')
+    #props = fm.FontProperties(family='Gill Sans', fname='/Library/Fonts/GillSans.ttc')
     f, ax = plt.subplots()
     plt.figure(num=0, figsize=(12, 8), dpi=80, facecolor='w', edgecolor='k')
     plt.loglog(index, eps_a, '-r', linewidth=2)
@@ -148,7 +151,7 @@ def exp_2a():
     plt.yticks(fontsize=20)
     plt.xlabel(r'Iterations', fontsize=20)
     plt.ylabel(r'$\epsilon$', fontsize=20)
-    ax.set_title('Title', fontproperties=props)
-
-    plt.savefig('exp2a.pdf', bbox_inches='tight')
+    #ax.set_title('Title', fontproperties=props)
+    plt.show()
+    #plt.savefig('exp2a.pdf', bbox_inches='tight')
 exp_2a()
