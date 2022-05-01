@@ -1,12 +1,20 @@
-# Example of a specific transformer that outputs the composition
+"""
+Example of a specific transformer that outputs the composition
+1. class Composition: supports RDP-based composition.
+2. class ComposeAFA: supports characteristic function (phi-function) based composition.
+3. class ComposeGaussian: supports composition of only Gaussian mechanisms.
+4. class AmplificationBySampling: supports RDP and DP based amplification rule.
+5. classAmplificationBySampling_pld: amplification by sampling for privacy loss distribution.
 
+"""
 
 from autodp.autodp_core import Mechanism, Transformer
+from copy import deepcopy
 import math
 import autodp.cdf_bank  as cdf_bank
 import numpy as np
 
-from autodp import mechanism_zoo, rdp_acct
+from autodp import mechanism_zoo, rdp_acct, phi_bank
 
 
 # The generic composition class
@@ -105,11 +113,6 @@ class ComposeAFA(Transformer):
 
         def new_log_phi_q(x):
             return sum([c * mech.log_phi_q(x) for (mech, c) in zip(mechanism_list, coeff_list)])
-
-        newmech.exactPhi = False
-
-        # For mechanism with an exact phi-function, it admits both upper and lower bound phi-functions.
-        # The phi-functions of mechanisms that are being composed shall be all (upper_bound / exact_phi)  or (lower_bound / exact_phi.
 
         newmech.log_phi_p = lambda x: new_log_phi_p(x)
         newmech.log_phi_q = lambda x: new_log_phi_q(x)
@@ -256,7 +259,6 @@ class AmplificationBySampling_pld(Transformer):
         self.preprocessing = True # Sampling happen before the mechanism is applied
         self.neighboring = neighboring
 
-
         # Update the function that is callable
         self.transform = self.amplify
 
@@ -281,6 +283,14 @@ class AmplificationBySampling_pld(Transformer):
             newmech.neighboring = 'add_only'
             new_pdf_p = lambda x: mechanism.pdf_p(x)
             new_pdf_q = lambda x: (1. - prob) * mechanism.pdf_p(x) + prob * mechanism.pdf_q(x)
+            # Besides using general pdf2phi conversion, we can construct a more numerical stable phi function.
+            # In the subsampled Gaussian case, the following phi functions is more stable as many exponential terms will
+            # cancel out in the phi function.
+            if len(mechanism.params.keys()) == 1 and 'sigma' in mechanism.params.keys():
+                params = {'sigma': mechanism.params['sigma'], 'gamma':prob}
+                log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(params, x, remove_only=False)
+                log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(params, x, remove_only = False)
+                newmech.propagate_updates((log_phi_p, log_phi_q), 'log_phi')
 
         else:
             assert mechanism.neighboring != 'add_only', "mechanism's neighboring relationship notion of DP is " \
@@ -289,6 +299,12 @@ class AmplificationBySampling_pld(Transformer):
             if self.PoissonSampling:
                 new_pdf_p = lambda x: (1. - prob) * mechanism.pdf_q(x) + prob * mechanism.pdf_p(x)
                 new_pdf_q = lambda x: mechanism.pdf_q(x)
+                print('mechanism.para,keys', mechanism.params.keys)
+                if len(mechanism.params.keys()) == 1 and 'sigma'in mechanism.params.keys():
+                    params = {'sigma': mechanism.params['sigma'], 'gamma': prob}
+                    log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(params, x, remove_only=True)
+                    log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(params, x, remove_only=True)
+                    newmech.propagate_updates((log_phi_p, log_phi_q), 'log_phi')
             else:
                 # subset sampling
                 new_pdf_p = lambda x: (1. - prob) * mechanism.pdf_p(x) + prob * mechanism.pdf_q(x)
@@ -303,8 +319,8 @@ class AmplificationBySampling_pld(Transformer):
         newmech.approxDP = new_approxDP
 
 
-        # update CDF
-        # Do we need to apply propagate_updates for cdf?
+        # TODO: For future work, we need to update subsampled CDF
+
 
         #TODO: Implement the amplification of f-DP
         # propagate to approxDP, or simply get the f-DP from approximate-DP.
@@ -322,7 +338,7 @@ class AmplificationBySampling_pld(Transformer):
             key = newname + '_' + str(prob)
 
         newmech.name = newname +':'+mechanism.name
-        newmech.params = mechanism.params
+        newmech.params = deepcopy(mechanism.params)
         new_params = {newname:prob}
         newmech.params.update(new_params)
 
@@ -364,7 +380,7 @@ class AmplificationBySampling(Transformer):
         # propagate to approxDP as well.
 
         if self.PoissonSampling:
-            assert not mechanism.replace_one, "mechanism's replace_one notion of DP is " \
+            assert mechanism.neighboring is not 'replace_one', "mechanism's replace_one notion of DP is " \
                                                    "incompatible with Privacy Amplification " \
                                                    "by Poisson sampling"
             # check that the input mechanism uses the standard add-or-remove notion of DP.
@@ -372,8 +388,8 @@ class AmplificationBySampling(Transformer):
             # unless a "dummy" user exists in the space.
             newmech.replace_one = False
 
-        else:  # if we want subsampled DP
-            assert mechanism.replace_one, "mechanism's add-remove notion of DP is " \
+        else:  # if we want subset subsampled DP
+            assert mechanism.neighboring is not 'add_remove', "mechanism's add-remove notion of DP is " \
                                                    "incompatible with Privacy Amplification " \
                                                    "by subsampling without replacements"
             # TODO: implement a transformer that convert add/remove to replace_one notion of DP.
@@ -418,7 +434,7 @@ class AmplificationBySampling(Transformer):
             key = newname + '_' + str(prob)
 
         newmech.name = newname +':'+mechanism.name
-        newmech.params = mechanism.params
+        newmech.params = deepcopy(mechanism.params)
         new_params = {newname:prob}
         newmech.params.update(new_params)
 

@@ -79,7 +79,7 @@ class Mechanism():
         self.fDP = fDP
         self.cdf_p = cdf_p
         self.cdf_q = cdf_q
-        self.exact_phi = False # whether admit a closed-form phi-function
+        self.exact_phi = True # whether admit a closed-form phi-function
         self.eps_pureDP = np.inf  # equivalent to RenyiDP(np.inf) and approxDP(0).
 
         self.delta0 = np.inf  # indicate the smallest allowable \delta0 in approxRDP that is not inf
@@ -278,8 +278,9 @@ class Mechanism():
             self.pdf_p = func[0]
             self.pdf_q = func[1]
 
-            # convert pdf to phi-function using gaussian quadrature
-            # TODO: if currant mechanism admits a closed-form phi, then this step is unnecessary.
+            # convert pdf to phi-function using gaussian quadrature. if currant mechanism admits a closed-form phi,
+            # then this step is unnecessary.
+            # WARNING: this conversion can be numerically unstable, thus, we set exact_phi to be True as a default setting.
             if self.exact_phi == False:
                 def log_phi_p(t): return converter.pdf_to_phi(self.pdf_p, self.pdf_q, t)
                 def log_phi_q(t): return converter.pdf_to_phi(self.pdf_q, self.pdf_p, t)
@@ -296,16 +297,19 @@ class Mechanism():
                                                                 converter.cdf_to_approxdelta(cdf_p, cdf_q))
 
         elif type_of_update == 'log_phi':
-            # Analytical Fourier accountant, function will be a pair
-            # of log characteristic functions.
-            # cdf_p is for log(p/q) and cdf_q is for log(q/p)
+            # Update Analytical Fourier accountant with a new pair of log characteristic functions.
+
             log_phi_p = func[0]
             log_phi_q = func[1]
-            #self.exact_phi = True
+            self.exact_phi = True
+            self.log_phi_p = log_phi_p
+            self.log_phi_q = log_phi_q
             # Apply Gaussian quadrature to do numerical inversion.
-            cdf_p = lambda x: cdf_bank.cdf_quad(log_phi_p, x, n_quad = n_quad)
-            cdf_q = lambda x: cdf_bank.cdf_quad(log_phi_q, x, n_quad = n_quad)
-            # l is the range of eps
+            # cdf_p is the cdf of log(p/q), and cdf_q is the cdf for log(q/p).
+            cdf_p = lambda x: converter.phi_to_cdf(log_phi_p, x, n_quad = n_quad)
+            cdf_q = lambda x: converter.phi_to_cdf(log_phi_q, x, n_quad = n_quad)
+
+            # Other approaches to convert phi function to cdf functions (not recommended)
             #cdf_p = lambda l: cdf_bank.cdf_approx_fft(log_phi_p, l)
             #cdf_q = lambda l: cdf_bank.cdf_approx_fft(log_phi_q, l)
 
@@ -317,7 +321,6 @@ class Mechanism():
             # Analytical CDF: cdf_p is for log(p/q), cdf_q is for log(q/p).
             cdf_p = func[0]
             cdf_q = func[1]
-
             # propagate to ApproxDP
             self.approxDP = converter.pointwise_minimum(self.approxDP,
                                                         converter.cdf_to_approxdp(cdf_p, cdf_q))
@@ -325,12 +328,11 @@ class Mechanism():
             self.cdf_p = cdf_p
             self.cdf_q = cdf_q
 
-            #propagate to discrete phi-function
-
-            #propagate to analytical phi-function using quadrature rules
-            self.phi_p = converter.cdf_phi_p(cdf_p)
-            self.phi_q = converter.cdf_phi_q(cdf_q)
-
+            # TODO: convert CDF to discrete phi functions (FFT based approaches).
+            """
+            self.log_phi_p = converter.cdf_phi_p(cdf_p)
+            self.log_phi_q = converter.cdf_phi_q(cdf_q)
+            """
             # propagate to ApproxDelta
             self.approx_delta = converter.pointwise_minimum(self.approx_delta,
                                                             converter.cdf_to_approxdelta(cdf_p, cdf_q))

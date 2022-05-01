@@ -1,5 +1,16 @@
-# This module implements all known conversions from DP
+"""
+This module implements all known conversions from DP
+1. puredp_to_approxdp
+2. rdp_to_delta and rdp_to_aapproxDP
+3. For  fDP conversions, we implement:
+    a. single_rdp_to_fdp
+    b. approxdp_func_to_fdp
+    c. puredp_to_fdp(eps) # From Wasserman and Zhou
+4. For phi function to approxDP conversions, we implement:
+    a. pdf_to_phi (convert pdf of privacy loss R.V. to the characteristic function of privacy loss R.V>)
+    b. cdf_to_approxdp and cdf_to_approxdelta
 
+"""
 
 
 import numpy as np
@@ -891,6 +902,35 @@ def pdf_to_phi(p, q, t):
     return np.log(res_p[0])
 
 
+def phi_to_cdf(log_phi, ell, n_quad=300, extra_para=None):
+    """
+     This function computes the CDF of privacy loss R.V. via Levy theorem.
+     https://en.wikipedia.org/wiki/Characteristic_function_%28probability_theory%29#Inversion_formulae
+     The integration is implemented through Gaussian quadrature.
+
+     Args:
+        log_phi: the log of characteristic (phi)  function.
+        ell: the privacy loss RV is evaluated at ell
+        extra_para: extra parameters used to describe the privacy loss R.V..
+
+    Return: the CDF of the privacy loss RV when evaluated at ell。
+    """
+
+    def qua(t):
+        """
+        Convert [-1, 1] to an infinite integral.
+        """
+        new_t = t*1.0/(1-t**2)
+        phi_result = [log_phi(x) for x in new_t]
+        inte_function = 1.j/new_t * np.exp(-1.j*new_t*ell+phi_result)
+        return inte_function
+    # n is the maximum sampling point used in Gaussian quadrature, setting it to be >700 is usually very accurate.
+    inte_f = lambda t: qua(t) * (1 + t ** 2) / ((1 - t ** 2) ** 2)
+    res = integrate.fixed_quad(inte_f, -1.0, 1.0, n =n_quad)
+
+    result = res[0]
+    return np.real(result)/(2*np.pi)+0.5
+
 def cdf_to_approxdelta_fft(cdf_p, cdf_q, l =1e4):
     """
     Future work: Returns delta as a function of epsilon using FFT.
@@ -985,8 +1025,8 @@ def numerical_inverse(f, bounds=[1, np.inf]):
         def normal_equation(x):
             return abs(fun(x))
 
-        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-10)
-        #results = minimize_scalar(normal_equation, bounds=[1,np.inf], bracket=[1,2], tol=1e-3)
+        #results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-10)
+        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1,2], tol=1e-6)
 
 
         #results = root_scalar(fun, options={'disp': False})

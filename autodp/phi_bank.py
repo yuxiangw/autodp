@@ -8,6 +8,7 @@
 import numpy as np
 import math
 import time
+from scipy.stats import norm
 
 from scipy.fft import fft
 from autodp import utils
@@ -119,24 +120,21 @@ def phi_laplace(params, t):
     return result + np.log(0.5)
 
 
-def phi_subsample_gaussian_p(params, t, phi_min=False, phi_max=False, L=20, N=1e4, remove_only=True):
+def phi_subsample_gaussian_p(params, t, remove_only=False):
     """
-    The log phi-function of the poisson subsample Gaussian mechanism.
+    Return the  log phi-function of the poisson subsample Gaussian mechanism (evaluated at the t-th order).
+    phi(t) := E_p e^{t log(p)/log(q)}.
+    For Poisson sampling, if  P: N(1, sigma^2) and Q:(0, sigma^2) dominate the base mechanism for both adding
+     and removing neighboring, relationship, then after sampling with probability 'prob'
+    new_p: (1-prob)*Q + prob*P; new_q: Q will dominates the sampled mechanism for remove only relationship.
+    new_p: P; new_q: (1-prob)P + prob*Q will dominates the sampled mechanism for add only relationship.
+    For details, please refer to Theorem 11 in https://arxiv.org/pdf/2106.08567.pdf
 
     The phi-function of the subsample Gaussian is not symmetric. This function implements the log phi-function
-    phi(t) := E_p e^{t log(p)/log(q)}.
-    We provide two approaches to approximate phi-function.
-    Approach 1: we provide valid upper and lower bounds by setting phi_max or phi_min to be True. This discretization-based
-    approach will truncate and discretize the output space.
-    Approach 2: (both phi_min = False and phi_max = False), we compute the phi-function using Gaussian
-    quadrature directly. We recommend
-    Args:
-        phi_min: if True, the function provide the lower bound approximation of delta(epsilon).
-        phi_max: if True, the function provide the upper bound approximation of delta(epsilon).
-        if not phi_min and not phi_max, the function provide gaussian quadrature approximation.
+    phi(t) := E_p e^{t log(p)/log(q)} using Gaussian quadrature directly.
+     Args:
         gamma: the sampling ratio.
         sigma: the std of the noise divide by the l2 sensitivity.
-        L, N: used in Approach 1, truncates the output space into [-L, L] and discretize it into N bins.
     """
 
     sigma = params['sigma']
@@ -144,31 +142,30 @@ def phi_subsample_gaussian_p(params, t, phi_min=False, phi_max=False, L=20, N=1e
 
     """
     The qua function (used for Double Quadrature method) computes e^{it log(p)/log(q)} 
-    consider the removal only:
     Gaussian quadrature requires the integration interval is [-1, 1]. To integrate over [-inf, inf], we 
     first convert y (the integral in Gaussian quadrature) to new_y.
     The privacy loss R.V. log(p/q) = log(gamma * e^(2 * new_y - 1)/2 * sigma**2 + 1 -gamma)
     """
-
     def qua(y):
-
         new_y = y * 1.0 / (1 - y ** 2)
         if remove_only is True:
-            #stable = utils.stable_logsumexp_two(np.log(gamma) + (2 * new_y - 1) / (2 * sigma ** 2), np.log(1 - gamma))
-            stable = utils.stable_logsumexp_two(np.log(gamma) + (2 * new_y-1) / (-2 * sigma ** 2), np.log(1 - gamma))
+            # stable computes log(new_p(new_y)/new_q(new_y))
+            stable = utils.stable_logsumexp_two(np.log(gamma) + (2 * new_y-1) / (2 * sigma ** 2), np.log(1 - gamma))
             exp_term = np.exp(1.0j * stable * t)
-            density_term = utils.stable_logsumexp_two(- (new_y-1) ** 2 / (2 * sigma ** 2) + np.log(1 - gamma), - (new_y)
-                                                                ** 2 / (2 * sigma ** 2) + np.log(gamma))
+            # density_term computes the pdf of new_p: (1-prob)*Q + prob*P
+            density_term = utils.stable_logsumexp_two(- (new_y-1) ** 2 / (2 * sigma ** 2) + np.log(gamma), - (new_y)
+                                                                ** 2 / (2 * sigma ** 2) + np.log(1-gamma))
             inte_function = np.exp(density_term) * exp_term
+
+
         else:
-            # new P(x): 1/sqrt{2pi*sigma**2}e^{-x^2/2sigma**2} new Q(x) = (1-gamma)/(sqrt{2pi*sigma**2}*e^{-x**2/2sigma**2})
-            # + gamma/sqrt{2pi*sigma**2}*e^{-(x-1)**2/2sigma**2}
-            stable = utils.stable_logsumexp_two(- new_y ** 2 / (2 * sigma ** 2) + np.log(1 - gamma),
-                                                - (new_y - 1) ** 2 / (2 * sigma ** 2) + np.log(gamma))
-            # Stable is for log P(x)/Q(x)
-            stable = -new_y ** 2 / (2 * sigma ** 2) - stable
+            # returns the add_only result.
+            # new p(x): 1/sqrt{2pi*sigma**2}e^{-(x-1)^2/2sigma**2} new q(x) = (1-gamma)/(sqrt{2pi*sigma^2}*e^{-(x-1)**2
+            # /2sigma**2} + gamma/sqrt{2pi*sigma**2}*e^{-(x)**2/2sigma**2}
+            stable = -utils.stable_logsumexp_two(np.log(1-gamma), np.log(gamma)+(1-2*new_y)/(2*sigma**2))
+            # Stable is for log new_P(x)/new_Q(x)
             exp_term = np.exp(1.0j * stable * t)
-            density_term = -new_y ** 2 / (2 * sigma ** 2)
+            density_term = -(new_y-1) ** 2 / (2 * sigma ** 2)
             inte_function = np.exp(density_term) * exp_term
         return inte_function
 
@@ -176,57 +173,29 @@ def phi_subsample_gaussian_p(params, t, phi_min=False, phi_max=False, L=20, N=1e
     # int_-infty^infty f(x)dx = int_-1^1 f(y/(1-y^2)) * (1 + y**2) / ((1 - y ** 2) ** 2).
     inte_f = lambda y: qua(y) * (1 + y ** 2) / ((1 - y ** 2) ** 2)
 
-    if not phi_min and not phi_max:
-        # Double quadrature: res computes the phi-function using Gaussian quadrature.
-        res = integrate.quadrature(inte_f, -1.0, 1.0, tol=1e-15, rtol=1e-15, maxiter=100)
-        result = np.log(res[0]) - np.log(np.sqrt(2 * np.pi) * sigma)
-        return result
-
-    """
-    Return the lower and upper bound approximation
-    """
-    N = int(N)
-    dx = 2.0 * L / N
-    y = np.linspace(-L, L - dx, N, dtype=np.complex128)  # represent y
-    stable = utils.stable_logsumexp_two(np.log(gamma) + (2 * y - 1) / (2 * sigma ** 2), np.log(1 - gamma))
-
-    if phi_min:
-        # return the left riemann stable (lower bound of the privacy guarantee).
-        stable = [min(stable[max(i - 1, 0)], stable[i]) for i in range(len(stable))]
-    elif phi_max:
-        stable = [max(stable[max(i - 1, 0)], stable[i]) for i in range(len(stable))]
-
-    stable_1 = utils.stable_logsumexp(1.0j * stable * t - (y - 1) ** 2 / (2 * sigma ** 2)) + np.log(gamma) - np.log(
-        np.sqrt(2 * np.pi) * sigma)
-    stable_2 = utils.stable_logsumexp(1.0j * stable * t - y ** 2 / (2 * sigma ** 2)) + np.log(1 - gamma) - np.log(
-        np.sqrt(2 * np.pi) * sigma)
-    p_y = utils.stable_logsumexp_two(stable_1, stable_2)
-    result = p_y + np.log(dx)
-
+    # Double quadrature: res computes the phi-function using Gaussian quadrature.
+    res = integrate.quadrature(inte_f, -1.0, 1.0, tol=1e-15, rtol=1e-15, maxiter=100)
+    result = np.log(res[0]) - np.log(np.sqrt(2 * np.pi) * sigma)
     return result
 
 
-def phi_subsample_gaussian_q(params, t, phi_min=False, phi_max=False, L=20, N=1e4):
+def phi_subsample_gaussian_q(params, t, remove_only=False):
     """
-    The phi-function of the privacy loss R.V. log(q)/log(p), i.e., phi(t) := E_q e^{t log(q)/log(p)}.
+    Return the  log phi-function of the poisson subsample Gaussian mechanism (evaluated at the t-th order).
+    phi(t) := E_q e^{t log(q)/log(p)}.
 
-    We provide two approaches to approximate the phi-function.
-    In the first approach, we provide valid upper and lower bounds by setting phi_max or phi_min to be True.
-    In the second approach (both phi_min = False and phi_max = False), we compute the phi-function using Gaussian
-    quadrature directly. We recommend the second approach as it's more efficient.
+    For Poisson sampling, if  P: N(1, sigma^2) and Q:(0, sigma^2) dominate the base mechanism for both adding
+     and removing neighboring, relationship, then after sampling with probability 'prob'
+    new_p: (1-prob)*Q + prob*P; new_q: Q will dominates the sampled mechanism for remove only relationship.
+    new_p: P; new_q: (1-prob)P + prob*Q will dominates the sampled mechanism for add only relationship.
+    For details, please refer to Theorem 11 in https://arxiv.org/pdf/2106.08567.pdf
 
     Args:
-        phi_min: if True, the function provide the lower bound approximation of delta(epsilon).
-        phi_max: if True, the function provide the upper bound approximation of delta(epsilon).
-        if not phi_min and not phi_max, the function provide gaussian quadrature approximation.
         gamma: the sampling ratio.
         sigma: the std of the noise divide by the l2 sensitivity.
-        In the approximation (first approach), we first truncate the 1-dim output space to [-L, L]
-         and then divide it into N points.
-        L, N: used in Approach 1, truncates the output space into [-L, L] and discretize it into N bins.
 
     Returns:
-        The phi-function evaluated at the t-th order.
+        The log phi-function evaluated at the t-th order.
     """
 
     sigma = params['sigma']
@@ -241,31 +210,32 @@ def phi_subsample_gaussian_q(params, t, phi_min=False, phi_max=False, L=20, N=1e
 
     def qua(y):
         new_y = y * 1.0 / (1 - y ** 2)
-        phi_result = -1.0 * utils.stable_logsumexp_two(np.log(gamma) + (2 * new_y - 1) / (2 * sigma ** 2),
-                                                       np.log(1 - gamma))
-        phi_result = np.exp(phi_result * 1.0j * t)
-        inte_function = phi_result * np.exp(-new_y ** 2 / (2 * sigma ** 2))
+        if remove_only is True:
+
+            log_q_p = -1.0 * utils.stable_logsumexp_two(np.log(gamma) + (2 * new_y - 1) / (2 * sigma ** 2),
+                                                           np.log(1 - gamma))
+            phi_result = np.exp(log_q_p * 1.0j * t)
+            inte_function = phi_result * np.exp(-new_y ** 2 / (2 * sigma ** 2))
+        else:
+            # for add_only: log_q_p is log(new_Q(new_y)/new_P(new_y))
+            log_q_p = utils.stable_logsumexp_two(np.log(1 - gamma), np.log(gamma) + (1 - 2 * new_y) / (2 * sigma ** 2))
+
+            exp_term = np.exp(log_q_p * 1.0j *t)
+            # density is (1-gamma)*P + gamma*Q, which is (1-gamma)*e^{-(x-1)^2/2sigma^2} + gamma * np.exp(-x^2/2sigma^2)
+            density_term = utils.stable_logsumexp_two(-(new_y-1)**2/(2*sigma**2)+np.log(1-gamma),np.log(gamma)-(new_y)
+                                                      **2/(2*sigma**2))
+            inte_function = exp_term * np.exp(density_term)
+
         return inte_function
 
-    # inte_f implements the integraion over an infinite intervals.
+    # inte_f implements the integration over an infinite intervals.
     # int_-infty^infty f(x)dx = int_-1^1 f(y/1-y^2) * (1 + y**2) / ((1 - y ** 2) ** 2).
     inte_f = lambda y: qua(y) * (1 + y ** 2) / ((1 - y ** 2) ** 2)
 
-    if not phi_max and not phi_min:
-        # Double quadrature: res computes the phi-function using Gaussian quadrature.
-        res = integrate.quadrature(inte_f, -1.0, 1.0, tol=1e-15, rtol=1e-15, maxiter=100)
-        result = np.log(res[0]) - np.log(np.sqrt(2 * np.pi) * sigma)
-        return result
 
-    dx = 2.0 * L / N  # discretisation interval \Delta x
-    y = np.linspace(-L, L - dx, N, dtype=np.complex128)
-    stable = -1.0 * utils.stable_logsumexp_two(np.log(gamma) + (2 * y - 1) / (2 * sigma ** 2), np.log(1 - gamma))
-    if phi_min:
-        # return the left riemann stable
-        stable = [min(stable[max(i - 1, 0)], stable[i]) for i in range(len(stable))]
-    elif phi_max:
-        stable = [max(stable[max(i - 1, 0)], stable[i]) for i in range(len(stable))]
-    exp_term = 1.0j * t * stable
-    result = utils.stable_logsumexp(exp_term - y ** 2 / (2 * sigma ** 2)) - np.log(np.sqrt(2 * np.pi) * sigma)
-    new_result = result + np.log(dx)
-    return new_result
+    # Double quadrature: res computes the phi-function using Gaussian quadrature.
+    res = integrate.quadrature(inte_f, -1.0, 1.0, tol=1e-15, rtol=1e-15, maxiter=100)
+    result = np.log(res[0]) - np.log(np.sqrt(2 * np.pi) * sigma)
+    return result
+
+
