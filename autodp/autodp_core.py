@@ -161,7 +161,7 @@ class Mechanism():
             eps = func[0]
             delta = func[1]
 
-            self.approxRDP = converter.pointwise_minimum_two_args(self.approxRDP,
+            self.approxRDP = converter.pointwise_minimum_two_arguments(self.approxRDP,
                                           converter.approxdp_to_approxrdp(eps, delta))
 
             def approx_dp_func(delta1):
