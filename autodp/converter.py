@@ -793,14 +793,7 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
 
 
-def cdf_to_dis_phi_p(cdf_p):
-    """
-    # TODO: Convert cdf_p to the discrete phi-function. The algorithm is based on Gopi et al.
 
-    Truncation parameter L, the composed PLD will be supported in [-L, L].
-    :param cdf_p:
-    :return:
-    """
 
 
 def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
@@ -922,7 +915,7 @@ def phi_to_cdf(log_phi, ell, n_quad=300, extra_para=None):
         """
         new_t = t*1.0/(1-t**2)
         phi_result = [log_phi(x) for x in new_t]
-        inte_function = 1.j/new_t * np.exp(-1.j*new_t*ell+phi_result)
+        inte_function = 1.j/new_t * np.exp(-1.j*new_t*ell)*np.exp(phi_result)
         return inte_function
     # n is the maximum sampling point used in Gaussian quadrature, setting it to be >700 is usually very accurate.
     inte_f = lambda t: qua(t) * (1 + t ** 2) / ((1 - t ** 2) ** 2)
