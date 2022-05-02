@@ -91,31 +91,3 @@ def cdf_approx_fft(log_phi, L, N = 5e6):
     cdf = [0.5 + eta * convert_z(j) / (2 * np.pi) - 1. / (2 * np.pi * 1.j) * fft_norm[j] for j in range(2 * N - 1)]
     return cdf
 
-def cdf_quad(log_phi, ell, n_quad=700, extra_para=None):
-    """
-     This function computes the CDF of privacy loss R.V. via Levy theorem.
-     https://en.wikipedia.org/wiki/Characteristic_function_%28probability_theory%29#Inversion_formulae
-     The integration is implemented through Gaussian quadrature.
-
-     Args:
-        log_phi: the log of characteristic (phi)  function.
-        ell: the privacy loss RV is evaluated at ell
-        extra_para: extra parameters used to describe the privacy loss R.V..
-
-    Return: the CDF of the privacy loss RV when evaluated at ell。
-    """
-
-    def qua(t):
-        """
-        Convert [-1, 1] to an infinite integral.
-        """
-        new_t = t*1.0/(1-t**2)
-        phi_result = [log_phi(x) for x in new_t]
-        inte_function = 1.j/new_t * np.exp(-1.j*new_t*ell+phi_result)
-        return inte_function
-    # n is the maximum sampling point used in Gaussian quadrature, setting it to be >700 is usually very accurate.
-    inte_f = lambda t: qua(t) * (1 + t ** 2) / ((1 - t ** 2) ** 2)
-    res = integrate.fixed_quad(inte_f, -1.0, 1.0, n =n_quad)
-
-    result = res[0]
-    return np.real(result)/(2*np.pi)+0.5
