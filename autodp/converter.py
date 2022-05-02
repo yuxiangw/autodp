@@ -995,7 +995,7 @@ def fdp_to_approxdp(fdp):
     #     return np.log(exp_eps(-np.log(delta)))
 
     def neg_fstar_neg_input(x):
-        return -fstar(-x)
+        return -1.0*fstar(-1.0*x)
 
     exp_eps = numerical_inverse(neg_fstar_neg_input,[0,1])
     def approxdp(delta):
