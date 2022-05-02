@@ -16,8 +16,8 @@ Calibrator --- A `calibrator' takes a mechanism with parameters (e.g. noise leve
 """
 
 import numpy as np
-from autodp import converter
-
+from autodp import converter, cdf_bank
+from scipy.optimize import minimize_scalar, root_scalar
 
 class Mechanism():
     """
@@ -57,8 +57,16 @@ class Mechanism():
         def approxRDP(delta, alpha):
             return np.inf
 
-        def approxDP(delta):
+        def approxDP(delta, estimated_eps=None):
             return np.inf
+
+        def cdf_p(x):
+            return 0
+        def cdf_q(x):
+            return 0
+
+        def approx_delta(eps):
+            return 1
 
         def fDP(fpr):
             fnr = 0.0
@@ -67,22 +75,33 @@ class Mechanism():
         self.RenyiDP = RenyiDP
         self.approxRDP = approxRDP
         self.approxDP = approxDP
+        self.approx_delta =approx_delta
         self.fDP = fDP
-
+        self.cdf_p = cdf_p
+        self.cdf_q = cdf_q
+        self.exact_phi = True # whether admit a closed-form phi-function
         self.eps_pureDP = np.inf  # equivalent to RenyiDP(np.inf) and approxDP(0).
 
         self.delta0 = np.inf  # indicate the smallest allowable \delta0 in approxRDP that is not inf
 
         self.group_size = 1  # transformation that increases group size.
-        self.replace_one = False  #
+
+        self.neighboring = 'add_remove' # the default setting is 'add_remove', other choice includes 'add_only',
+        # 'remove_only', 'replace_one'
         self.local_flag = False  # for the purpose of implementating local DP.
         #  We can convert localDP to curator DP by parallel composition and by shuffling.
         self.updated = False  # if updated, then when getting eps, we know that directly getting
+        self.tbd_range = []
+
         # approxDP is the tightest possible.
 
     def get_approxDP(self, delta):
         # Output eps as a function of delta
         return self.approxDP(delta)
+
+    def get_approx_delta(self, eps):
+        # Output delta as a function of epsilon
+        return self.approx_delta(eps)
 
     def get_approxRDP(self, delta, alpha):
         # Output eps as a function of delta and alpha
@@ -96,6 +115,12 @@ class Mechanism():
         # Output false negative rate as a function of false positive rate
         return self.fDP(fpr)
 
+    def get_cdf_p(self, x):
+        # Output cdf as a function of log(p/q)
+        return self.cdf_p(x)
+    def get_cdf_q(self, x):
+        # Output cdf as a function of log(q/p)
+        return self.cdf_q(x)
     def get_pureDP(self):
         return self.eps_pureDP
 
@@ -109,7 +134,8 @@ class Mechanism():
     def propagate_updates(self, func, type_of_update,
                           delta0=0,
                           BBGHS_conversion=True,
-                          fDP_based_conversion=False):
+                          fDP_based_conversion=False, n_quad=700):
+
         # This function receives a new description of the mechanisms and updates all functions
         # based on what is new by calling converters.
 
@@ -135,7 +161,7 @@ class Mechanism():
             eps = func[0]
             delta = func[1]
 
-            self.approxRDP = converter.pointwise_minimum_two_arguments(self.approxRDP,
+            self.approxRDP = converter.pointwise_minimum_two_args(self.approxRDP,
                                           converter.approxdp_to_approxrdp(eps, delta))
 
             def approx_dp_func(delta1):
@@ -161,7 +187,7 @@ class Mechanism():
         elif type_of_update == 'RDP':
             # function output RDP eps as a function of alpha
             self.RenyiDP = converter.pointwise_minimum(self.RenyiDP, func)
-
+            self.approx_delta = converter.pointwise_minimum(self.approx_delta, converter.rdp_to_delta(self.RenyiDP))
             if fDP_based_conversion:
 
                 fdp_log, fdp_grad_log = converter.rdp_to_fdp_and_fdp_grad_log(func)
@@ -246,8 +272,115 @@ class Mechanism():
             # TODO: Write a function that converts approximateRDP to approximateDP
 
             # TODO: Write a function that converts approximateRDP to fDP.
-        else:
-            print(type_of_update, ' not recognized.')
+
+        elif type_of_update == 'pdf':
+            # func contains pdfs of the dominating pair
+            self.pdf_p = func[0]
+            self.pdf_q = func[1]
+
+            # convert pdf to phi-function using gaussian quadrature. if currant mechanism admits a closed-form phi,
+            # then this step is unnecessary.
+            # WARNING: this conversion can be numerically unstable, thus, we set exact_phi to be True as a default setting.
+            if self.exact_phi == False:
+                def log_phi_p(t): return converter.pdf_to_phi(self.pdf_p, self.pdf_q, t)
+                def log_phi_q(t): return converter.pdf_to_phi(self.pdf_q, self.pdf_p, t)
+                #log_phi_p, log_phi_q = converter.pdf_to_phi(self.pdf_p, self.pdf_q)
+                self.log_phi_p = log_phi_p
+                self.log_phi_q = log_phi_q
+                # Apply Gaussian quadrature to do numerical inversion.
+                cdf_p = lambda x: cdf_bank.cdf_quad(log_phi_p, x, n_quad=n_quad)
+                cdf_q = lambda x: cdf_bank.cdf_quad(log_phi_q, x, n_quad=n_quad)
+
+                self.approxDP = converter.pointwise_minimum(self.approxDP,
+                                                            converter.cdf_to_approxdp(cdf_p, cdf_q))
+                self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+                                                                converter.cdf_to_approxdelta(cdf_p, cdf_q))
+
+        elif type_of_update == 'log_phi':
+            # Update Analytical Fourier accountant with a new pair of log characteristic functions.
+
+            log_phi_p = func[0]
+            log_phi_q = func[1]
+            self.exact_phi = True
+            self.log_phi_p = log_phi_p
+            self.log_phi_q = log_phi_q
+            # Apply Gaussian quadrature to do numerical inversion.
+            # cdf_p is the cdf of log(p/q), and cdf_q is the cdf for log(q/p).
+            cdf_p = lambda x: converter.phi_to_cdf(log_phi_p, x, n_quad = n_quad)
+            cdf_q = lambda x: converter.phi_to_cdf(log_phi_q, x, n_quad = n_quad)
+
+            # Other approaches to convert phi function to cdf functions (not recommended)
+            #cdf_p = lambda l: cdf_bank.cdf_approx_fft(log_phi_p, l)
+            #cdf_q = lambda l: cdf_bank.cdf_approx_fft(log_phi_q, l)
+
+            self.approxDP = converter.pointwise_minimum(self.approxDP,
+                                                        converter.cdf_to_approxdp(cdf_p,cdf_q))
+            self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+                                                            converter.cdf_to_approxdelta(cdf_p, cdf_q))
+        elif type_of_update == 'cdf':
+            # Analytical CDF: cdf_p is for log(p/q), cdf_q is for log(q/p).
+            cdf_p = func[0]
+            cdf_q = func[1]
+            # propagate to ApproxDP
+            self.approxDP = converter.pointwise_minimum(self.approxDP,
+                                                        converter.cdf_to_approxdp(cdf_p, cdf_q))
+            # propagate to CDF
+            self.cdf_p = cdf_p
+            self.cdf_q = cdf_q
+
+            # TODO: convert CDF to discrete phi functions (FFT based approaches).
+            """
+            self.log_phi_p = converter.cdf_phi_p(cdf_p)
+            self.log_phi_q = converter.cdf_phi_q(cdf_q)
+            """
+            # propagate to ApproxDelta
+            self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+                                                            converter.cdf_to_approxdelta(cdf_p, cdf_q))
+
+        elif type_of_update =='log_phi_adv':
+            # Todo: Future work when the phi-function is parametrized by
+            #  more than one parameter.
+            """
+            log_phi_p = func[0]
+            log_phi_q = func[1]
+            cdf_p = lambda x, t: cdf_bank.cdf_approx(log_phi_p, x, tbd=t)
+            cdf_q = lambda x, t: cdf_bank.cdf_approx(log_phi_q, x, tbd=t)
+
+            # first find t that optimize for one particular delta
+            # we can set delta = 1e-5, and try out the tbd
+            normal_equation = lambda tbd: converter.cdf_to_approxdp_tbd(cdf_p, cdf_q, tbd)
+            n = 20
+            clip = (self.tbd_range[1] - self.tbd_range[0])*1.0/n
+            tbd_list = [self.tbd_range[0] + t*clip for t in range(n)]
+            # select a delta randomly
+            result_list = [normal_equation(tbd)(1e-5) for tbd in tbd_list]
+            result_list = np.array(result_list)
+            t = tbd_list[np.argmax(result_list)]
+
+            self.approxDP = converter.cdf_to_approxdp_adv(cdf_p, cdf_q,t)
+            #self.approxDP = converter.pointwise_minimum(self.approxDP, converter.cdf_to_approxdp_tbd(func,t))
+
+            #self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+            #                                                results[0])
+            """
+
+
+
+    def set_all_representation(self, mech):
+        """
+        Set all representations from a mechanism object. This is useful when constructing a
+        mechanism object using transformers then wanted to convert to a mechanism class definition.
+
+        :param mech:  Input mechanism object.
+        :return: None
+        """
+        # Need to make sure that the input is a mechanism object
+
+        self.approxDP = mech.approxDP
+        self.RenyiDP = mech.RenyiDP
+        self.fDP = mech.fDP
+        self.eps_pureDP = mech.eps_pureDP
+        self.delta0 = mech.delta0
 
     # Plotting functions: returns lines for people to plot outside
 

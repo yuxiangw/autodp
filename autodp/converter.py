@@ -1,14 +1,26 @@
-# This module implements all known conversions from DP
+"""
+This module implements all known conversions from DP
+1. puredp_to_approxdp
+2. rdp_to_delta and rdp_to_aapproxDP
+3. For  fDP conversions, we implement:
+    a. single_rdp_to_fdp
+    b. approxdp_func_to_fdp
+    c. puredp_to_fdp(eps) # From Wasserman and Zhou
+4. For phi function to approxDP conversions, we implement:
+    a. pdf_to_phi (convert pdf of privacy loss R.V. to the characteristic function of privacy loss R.V>)
+    b. cdf_to_approxdp and cdf_to_approxdelta
 
+"""
 
 
 import numpy as np
 from autodp import utils
 import math
+import scipy.integrate as integrate
 from autodp import rdp_bank
 from scipy.optimize import minimize_scalar, root_scalar
-
-
+from autodp import utils
+import time
 
 def puredp_to_rdp(eps):
     # From pure dp to RDP
@@ -37,6 +49,7 @@ def puredp_to_fdp(eps):
         return np.max(np.array([0, 1-np.exp(eps)*fpr, np.exp(-eps)*(1-fpr)]))
     return fdp
 
+
 def puredp_to_approxdp(eps):
     # Convert pureDP to approx dp
     # Page 3 of https://eprint.iacr.org/2018/277.pdf
@@ -44,6 +57,63 @@ def puredp_to_approxdp(eps):
         s,mag = utils.stable_log_diff_exp(eps, np.log(delta))
         return mag
     return approxdp
+
+
+def rdp_to_delta(rdp):
+    """
+    from RDP to delta with a fixed epsilon
+    """
+
+
+    def approx_delta(eps, naive=False):
+        """
+        approximate delta as a function of epsilon
+        """
+
+        def get_eps(delta):
+            if delta == 0:
+                return rdp(np.inf)
+            else:
+                def fun(x):  # the input the RDP's \alpha
+                    if x <= 1:
+                        return np.inf
+                    else:
+
+                        if naive:
+                            return np.log(1 / delta) / (x - 1) + rdp(x)
+                        bbghs = np.maximum(rdp(x) + np.log((x-1)/x)
+                                          - (np.log(delta) + np.log(x))/(x-1), 0)
+                        """
+                        The following is for optimal conversion
+                        1/(alpha -1 )log(e^{(alpha-1)*rdp -1}/(alpha*delta) +1 )
+                        """
+                        sign, term_1= utils.stable_log_diff_exp((x-1)*rdp(x),0)
+                        result = utils.stable_logsumexp_two(term_1 - np.log(x)- np.log(delta),0)
+                        return min(result*1.0/(x - 1), bbghs)
+
+                results = minimize_scalar(fun, method='Brent', bracket=(1, 2), bounds=[1, 100000])
+                if results.success:
+                   # print('delta', delta,'eps under rdp', results.fun)
+                    return results.fun
+                else:
+                    return np.inf
+
+
+        def err(delta):
+            current_eps = get_eps(delta)
+            #print('current delta', delta, 'eps', current_eps)
+            return abs(eps - current_eps)
+
+        results = minimize_scalar(err, method='bounded', bounds=[0, 0.1],options={'xatol':1e-14})
+        if results.success:
+            #print('results', results.x)
+            return results.x
+        else:
+            print('not found')
+            return 1
+
+
+    return approx_delta
 
 def rdp_to_approxdp(rdp, alpha_max=np.inf, BBGHS_conversion=True):
     # from RDP to approx DP
@@ -190,7 +260,7 @@ def rdp_to_fdp(rdp, alpha_max=np.inf):
 def single_rdp_to_fdp_and_fdp_grad_log(alpha, rho):
     # Return two functions
     # the first function outputs log(1-fdp(x)) as a function of logx
-    # the second function outputs log(-partial fdp(x)) as a function of logx
+    # the second function outputs log(-partial fdp(x)) as a function of logx # given epsilon, search a proper delta
     # The format of the output of the second function is an interval.
     assert (alpha >= 0.5)
 
@@ -336,7 +406,7 @@ def single_rdp_to_fdp_and_fdp_grad_log(alpha, rho):
 
         # there are two roots, we care about the roots smaller than 1-x
         results = minimize_scalar(normal_equation, bounds=[logx,0], method='bounded',
-                                  options={'xatol':1e-8})
+                                  options={'xatol':1e-6})
         if results.success:
             return results.x
         else:
@@ -723,6 +793,192 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
 
 
+def cdf_to_dis_phi_p(cdf_p):
+    """
+    # TODO: Convert cdf_p to the discrete phi-function. The algorithm is based on Gopi et al.
+
+    Truncation parameter L, the composed PLD will be supported in [-L, L].
+    :param cdf_p:
+    :return:
+    """
+
+
+def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
+    """
+    Solve eps(delta) query by searching a pair of cdf such that
+    delta(eps) = 1 - cdf_p(eps) - e^eps*cdf_q(-eps)
+    Args:
+        cdf_p: the cdf of log(p/q)
+        cdf_q: the cdf of log(q/p)
+        quadrature: if False, using a FFT-based numerical tool to convert
+        characteristic functions back to cdf.
+    """
+    if quadrature == False:
+        # Future work: convert characteristic functions to cdf using FFT.
+        return cdf_to_approxdp_fft(cdf_p,cdf_q, l=1e5)
+
+    def trade_off(x):
+        #x is e^epsilon
+        log_e = np.log(x)
+        # delta = 1 - result
+        result = cdf_p(log_e) + x*cdf_q(-log_e)
+        print('eps in binary search',log_e, 'current delta', 1-result)
+        return result
+    exp_eps = numerical_inverse(trade_off, [0,1])
+    def approxdp(delta):
+        t = exp_eps(1 - delta)
+        return np.log(t)
+    return approxdp
+
+def cdf_to_approxdp_fft(cdf_p,cdf_q, l=1e5):
+    """
+    Compute the numerical inversion of characteristic functions through FFT.
+
+    Args:
+        cdf_p: the cdf list of log(p/q)
+        cdf_q: the cdf list of log(q/p)
+        l: we compute epsilon(delta) for epsilon ranges from [-l, l]
+
+    Return:
+        an epsilon(delta) query
+    """
+
+    def approxdp(delta):
+        t1 = time.time()
+        cdf_p_list = cdf_p(l)
+        cdf_q_list = cdf_q(l)
+        t2 = time.time()
+        print('time in computing cdf', t2-t1)
+        # H is the number of point in fft, H = 2N-1
+        H = len(cdf_p_list)
+        mesh_size = 2.*l/H
+        n = int((H-1)/2)
+        b = l
+        f = lambda x: -b + mesh_size * x
+        eps_list= [f(i) for i in range(H)]
+        i = n-1
+        j = H-1
+        # Binary search to search a suitable epsilon.
+        t1 = time.time()
+        while i<j:
+            mid = int((i+j)/2)
+            eps = eps_list[mid]
+            result = cdf_p_list[int(mid)] + np.exp(eps) * cdf_q_list[int(H-mid-4)]
+            if abs(1-result)<0.1*delta:
+                return eps_list[mid]
+            if (1-result)>delta:
+                i = mid+1
+            else:
+                j = mid-1
+        t2 = time.time()
+        #print('time used in binary search', t2-t1)
+        if i<H-1 and eps_list[j]>0:
+            return eps_list[j]
+        raise ValueError("Mesh size is too large or l is smaller than the range of epsilon,"
+                         " please check the parameters N and l.")
+
+
+    return approxdp
+
+
+def pdf_to_phi(p, q, t):
+    """
+    Given a pair of dominating pair distribution p and q, returns the log phi function of log(p/q) and loq(q/p).
+
+    Args:
+        p,q: the pdf of dominating pair distribution
+    """
+    # compute the log_phi np.exp(1.j *t*log(p(o)/q(o)))
+    def _inte(y):
+        o = y*1.0/(1-y**2)
+        s = np.exp(1.0j * np.log(p(o)/q(o)) * t)*p(o)
+        # Improve the stability (NaN is close to zero).
+        s[np.isnan(s)] = 0
+        return s
+    # exp_term = lambda o: np.exp(1.0j * np.log(p(o)/q(o)) * t)*p(o)
+    inte_f_p = lambda y: _inte(y) * (1 + y ** 2) / ((1 - y ** 2) ** 2)
+    # applies gaussian quadrature to compute the expectation
+    res_p = integrate.quadrature(inte_f_p, -1.0, 1.0, tol=1e-15, rtol=1e-15, maxiter=100)
+    return np.log(res_p[0])
+
+
+def phi_to_cdf(log_phi, ell, n_quad=300, extra_para=None):
+    """
+     This function computes the CDF of privacy loss R.V. via Levy theorem.
+     https://en.wikipedia.org/wiki/Characteristic_function_%28probability_theory%29#Inversion_formulae
+     The integration is implemented through Gaussian quadrature.
+
+     Args:
+        log_phi: the log of characteristic (phi)  function.
+        ell: the privacy loss RV is evaluated at ell
+        extra_para: extra parameters used to describe the privacy loss R.V..
+
+    Return: the CDF of the privacy loss RV when evaluated at ell。
+    """
+
+    def qua(t):
+        """
+        Convert [-1, 1] to an infinite integral.
+        """
+        new_t = t*1.0/(1-t**2)
+        phi_result = [log_phi(x) for x in new_t]
+        inte_function = 1.j/new_t * np.exp(-1.j*new_t*ell+phi_result)
+        return inte_function
+    # n is the maximum sampling point used in Gaussian quadrature, setting it to be >700 is usually very accurate.
+    inte_f = lambda t: qua(t) * (1 + t ** 2) / ((1 - t ** 2) ** 2)
+    res = integrate.fixed_quad(inte_f, -1.0, 1.0, n =n_quad)
+
+    result = res[0]
+    return np.real(result)/(2*np.pi)+0.5
+
+def cdf_to_approxdelta_fft(cdf_p, cdf_q, l =1e4):
+    """
+    Future work: Returns delta as a function of epsilon using FFT.
+
+    Args:
+        cdf_p: a list cdf of log(p/q)
+        cdf_q: the cdf of log(q/p)
+    """
+
+    def approx_delta(eps):
+        cdf_p_list = cdf_p(l)
+        cdf_q_list = cdf_q(l)
+        if eps > l:
+            raise ValueError("Epsilon out of [-L,L] window, please check the parameters.")
+        H = len(cdf_p_list)
+        mesh_size = 2. * l / H
+        b = mesh_size * H / 2
+        f = lambda x: -b + mesh_size * x
+        eps_list = [f(i) for i in range(H)]
+        # idx is the first idx where eps_list[idx]> eps
+        idx = np.where(eps_list>eps)[0][0]
+        delta = 1-cdf_p_list[idx] - np.exp(eps_list[idx]) * cdf_q_list[int(H-idx-1)]
+        return delta
+    return approx_delta
+
+
+def cdf_to_approxdelta(cdf_p, cdf_q, quadrature=True):
+    """
+    Returns delta as a function of epsilon.
+
+    Args:
+        cdf_p: the cdf of log(p/q)
+        cdf_q: the cdf of log(q/p)
+        quadrature: if True, apply Gaussian quadrature for numerical inversion (converse
+        characteristic functions back to CDFs). Else, using FFT instead.
+
+    """
+    if quadrature == False:
+        return cdf_to_approxdelta_fft(cdf_p, cdf_q)
+
+    def approx_delta(eps):
+
+        delta = 1-cdf_p(eps) - np.exp(eps) * cdf_q(-eps)
+        return delta
+    return approx_delta
+
+
+
 def fdp_to_approxdp(fdp):
     # Check out Proposition 2.12 of Dong, Roth and Su
     # if given a symmetric fdp function f,
@@ -755,12 +1011,12 @@ def fdp_to_approxdp(fdp):
     return approxdp
 
 
-def numerical_inverse(f, bounds=None):
+def numerical_inverse(f, bounds=[1, np.inf]):
     # of a scalar, monotonic function
     def inv_f(y):
         if bounds:
             if y > bounds[1] or y < bounds[0]:
-                raise ValueError(f'y value {y} is out of bounds [{bounds[0]},{bounds[1]}].')
+                return None
 
         def fun(x):
             return f(x) - y
@@ -769,14 +1025,15 @@ def numerical_inverse(f, bounds=None):
         def normal_equation(x):
             return abs(fun(x))
 
-        results = minimize_scalar(normal_equation, bounds=[1,np.inf], bracket=[1,2])
+        #results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-10)
+        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1,2], tol=1e-6)
 
 
         #results = root_scalar(fun, options={'disp': False})
         if results.success:
             return results.x
         else:
-            raise RuntimeError(f"Failed to invert function {f} at {y}: {results.message}")
+            return None
 
     return inv_f
 
@@ -801,7 +1058,7 @@ def conjugate(f,tol=1e-10):
             return -(results.fun + tol)
             # output an upper bound
         else:
-            raise RuntimeError(f"Failed to conjugate function {f} at {x}: {results.message}")
+            return None
     return fstar
 
 

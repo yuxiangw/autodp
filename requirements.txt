@@ -1,4 +1,4 @@
 absl-py
 matplotlib
-numpy
-scipy
+numpy>=1.19.5
+scipy>=1.2.1

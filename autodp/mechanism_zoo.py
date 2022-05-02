@@ -3,21 +3,32 @@
 
 """
 import math
-
+from scipy import special
+import numpy as np
 from autodp.autodp_core import Mechanism
-from autodp import rdp_bank, dp_bank, fdp_bank, utils
+from autodp import rdp_bank, dp_bank, fdp_bank, utils, cdf_bank,phi_bank
 from autodp import transformer_zoo
-
+from scipy.stats import norm
 from scipy.optimize import minimize_scalar
+import numpy as np
 
 
 # Example of a specific mechanism that inherits the Mechanism class
 class GaussianMechanism(Mechanism):
+    """
+    The example of Gaussian mechanism with different characterizations.
+    """
     def __init__(self, sigma, name='Gaussian',
                  RDP_off=False, approxDP_off=False, fdp_off=True,
                  use_basic_RDP_to_approxDP_conversion=False,
-                 use_fDP_based_RDP_to_approxDP_conversion=False):
-        # the sigma parameter is the std of the noise divide by the l2 sensitivity
+                 use_fDP_based_RDP_to_approxDP_conversion=False, phi_off=True):
+        """
+        sigma: the std of the noise divide by the l2 sensitivity.
+        coeff: the number of composition
+        RDP_off: if False, then we characterize the mechanism using RDP.
+        fdp_off: if False, then we characterize the mechanism using fdp.
+        phi_off: if False, then we characterize the mechanism using phi-function.
+        """
         Mechanism.__init__(self)
 
         self.name = name # When composing
@@ -25,6 +36,33 @@ class GaussianMechanism(Mechanism):
         # TODO: should a generic unspecified mechanism have a name and a param dictionary?
 
         self.delta0 = 0
+
+        if not phi_off:
+            """
+            Apply phi function to analyze Gaussian mechanism.
+            the CDF of privacy loss R.V. is computed using an integration (see details in cdf_bank) through Levy Theorem.
+            """
+            log_phi = lambda x: phi_bank.phi_gaussian({'sigma': sigma}, x)
+            self.log_phi_p = self.log_phi_q = log_phi
+            # self.cdf tracks the cdf of log(p/q) and the cdf of log(q/p).
+            self.propagate_updates((log_phi, log_phi), 'log_phi')
+
+            # Propagate the pdf of dominating pairs.
+            def pdf_p(x): return norm.pdf(x, scale=sigma**2)
+            def pdf_q(x): return norm.pdf((x-1.), scale=sigma**2)
+            self.propagate_updates((pdf_p, pdf_q), 'pdf')
+            """
+            Moreover, we know the closed-form expression of the CDF of the privacy loss RV
+               privacy loss RV distribution l=log(p/q) ~ N(1/2\sigma^2, 1/sigma^2)
+            We can also use the following closed-form cdf directly.
+            """
+            #sigma = sigma*1.0/np.sqrt(coeff)
+            #mean = 1.0 / (2.0 * sigma ** 2)
+            #std = 1.0 / (sigma)
+            #cdf = lambda x: norm.cdf((x - mean) / std)
+            #self.propagate_updates(cdf, 'cdf', take_log=True)
+
+
         if not RDP_off:
             new_rdp = lambda x: rdp_bank.RDP_gaussian({'sigma': sigma}, x)
             if use_fDP_based_RDP_to_approxDP_conversion:
@@ -78,39 +116,103 @@ class ExactGaussianMechanism(Mechanism):
 
 class LaplaceMechanism(Mechanism):
     """
-    param params:
-    'b' --- is the is the ratio of the scale parameter and L1 sensitivity
+    The Laplace Mechanism that support RDP and phi-function based characterization.
     """
-    def __init__(self, b=None, name='Laplace'):
-
+    def __init__(self, b=None, name='Laplace', RDP_off=False, phi_off=True):
+        """
+        b: the ratio of the scale parameter and L1 sensitivity.
+        RDP_off: if False, then we characterize the mechanism using RDP.
+        fdp_off: if False, then we characterize the mechanism using fdp.
+        phi_off: if False, then we characterize the mechanism using phi-function.
+        """
         Mechanism.__init__(self)
 
         self.name = name
         self.params = {'b': b} # This will be useful for the Calibrator
+
         self.delta0 = 0
-        if b is not None:
+        if not phi_off:
+
+            log_phi_p = lambda x: phi_bank.phi_laplace(self.params, x)
+            log_phi_q = lambda x: phi_bank.phi_laplace(self.params, x)
+
+            self.log_phi_p = log_phi_p
+            self.log_phi_q = log_phi_q
+            self.propagate_updates((log_phi_p, log_phi_q), 'log_phi')
+
+
+        if not RDP_off:
             new_rdp = lambda x: rdp_bank.RDP_laplace({'b': b}, x)
             self.propagate_updates(new_rdp, 'RDP')
+
 
 
 class RandresponseMechanism(Mechanism):
 
     """
-        param params:
-        'p' --- is the Bernoulli probability p of outputting the truth.
+    The randomized response mechanism that supports RDP and phi-function based characterization.
+    TODO: assert when p is None.
+    """
+    def __init__(self, p=None, RDP_off=False, phi_off=True, name='Randresponse'):
         """
-
-    def __init__(self, p=None, name='Randresponse'):
+        p: the Bernoulli probability p of outputting the truth.
+        """
         Mechanism.__init__(self)
 
         self.name = name
-        self.params = {'p': p}  # This will be useful for the Calibrator
+        self.params = {'p': p}
         self.delta0 = 0
-        if p is not None:
+
+        if not RDP_off:
             new_rdp = lambda x: rdp_bank.RDP_randresponse({'p': p}, x)
             self.propagate_updates(new_rdp, 'RDP')
             approxDP = lambda x: dp_bank.get_eps_randresp_optimal(p, x)
             self.propagate_updates(approxDP, 'approxDP_func')
+
+        if not phi_off:
+            log_phi = lambda x: phi_bank.phi_rr_p({'p': p, 'q':1-p}, x)
+            self.log_phi_p = self.log_phi_q = log_phi
+            self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi')
+
+class zCDP_Mechanism(Mechanism):
+    def __init__(self,rho,xi=0,name='zCDP_mech'):
+        Mechanism.__init__(self)
+
+        self.name = name
+        self.params = {'rho':rho,'xi':xi}
+        new_rdp = lambda x: rdp_bank.RDP_zCDP(self.params, x)
+
+        self.propagate_updates(new_rdp,'RDP')
+
+
+class ExponentialMechanism(zCDP_Mechanism):
+    def __init__(self, eps,RDP_off=False, phi_off=True,  name='ExpMech'):
+        zCDP_Mechanism.__init__(self, eps**2/8, name=name)
+        # the zCDP bound is from here: https://arxiv.org/pdf/2004.07223.pdf
+
+        self.eps_pureDP = eps
+        self.propagate_updates(eps, 'pureDP')
+
+        if not RDP_off:
+            new_rdp = lambda x: rdp_bank.RDP_pureDP({'eps': eps/2.}, x)
+            self.propagate_updates(new_rdp, 'RDP')
+        def func(t):
+            """
+            Return the bernoulli parameter p and q for any t.
+            This is used for non-adaptive composition
+            """
+            p = (np.exp(-t) - np.exp(-eps))/(1-np.exp(-eps))
+            q = (1 - np.exp(t-eps))/(1-np.exp(-eps))
+            return {'p':p, 'q':q}
+        # TODO: implement the f-function and phi-function representation from two logistic r.v.
+        if not phi_off:
+            # t is from [0, eps], log(p/q) in [t-eps, t], we optimize t over compositions.
+            self.log_phi_p = lambda x, t: phi_bank.phi_rr_p(func(t), x)
+            self.log_phi_q = lambda x, t: phi_bank.phi_rr_q(func(t), x)
+
+            # the range of t
+            self.tbd_range = [0, eps]
+            self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi_adv')
 
 
 class PureDP_Mechanism(Mechanism):
@@ -134,11 +236,44 @@ class PureDP_Mechanism(Mechanism):
 
         #     self.propagate_updates(new_rdp, 'RDP')
 
+class zCDP_Mechanism(Mechanism):
+    def __init__(self,rho,xi=0,name='zCDP_mech'):
+        Mechanism.__init__(self)
+
+        self.name = name
+        self.params = {'rho':rho,'xi':xi}
+        new_rdp = lambda x: rdp_bank.RDP_zCDP(self.params, x)
+
+        self.propagate_updates(new_rdp,'RDP')
+
+
+class DiscreteGaussianMechanism(zCDP_Mechanism):
+    def __init__(self, sigma, name='DGM'):
+        zCDP_Mechanism.__init__(self, 0.5/sigma**2, name=name)
+
+        # This the the best implementation for DGM for now.
+        # The analytical formula for approximate-DP applies only to 1D outputs
+        # The exact eps,delta-DP and char function for the multivariate outputs
+        # requires a further maximization over neighboring datasets, which is unclear how to do
+
+class ExponentialMechanism(zCDP_Mechanism):
+    def __init__(self, eps, name='ExpMech'):
+        zCDP_Mechanism.__init__(self, eps**2/8, name=name)
+        # the zCDP bound is from here: https://arxiv.org/pdf/2004.07223.pdf
+
+        # TODO: Bounded range should imply a slightly stronger RDP that dominates the following
+        self.eps_pureDP = eps
+        self.propagate_updates(eps, 'pureDP')
+
+        # TODO: implement the f-function and phi-function representation from two logistic r.v.
+
 
 
 class SubsampleGaussianMechanism(Mechanism):
     """
-    This one is used as an example for calibrator with subsampled Gaussian mechanism
+    This one is used as an example for RDP-based calibrator with subsampled Gaussian mechanism.
+    In calibration, users need to specify the sampling probability `prob` and the number of composition `coeff'.
+    In the general mechanism design (not for calibrator usage), the initialization in mechanism does not take in the coeff parameter.
     """
     def __init__(self,params,name='SubsampleGaussian'):
         Mechanism.__init__(self)
@@ -183,8 +318,9 @@ class ComposedGaussianMechanism(Mechanism):
 
 class NoisyScreenMechanism(Mechanism):
     """
-    The data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN (CPVR-20))
-    This mechanism is also used in Figure 2(a) in NIPS-20
+    The data-dependent RDP of ``Noisy Screening" (Theorem 7 in Private-kNN (CVPR-20))
+    This mechanism is also used in Figure 2(a) in Gaussian-based SVTs.
+    https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf
     """
     def __init__(self,params,name='NoisyScreen'):
         Mechanism.__init__(self)
@@ -198,10 +334,12 @@ class NoisyScreenMechanism(Mechanism):
 
 class GaussianSVT_Mechanism(Mechanism):
     """
-    Gaussian SVT  proposed by NeurIPS-20
-    parameters k and sigma
-    k is the maximum length before the algorithm stops
-    rdp_c_1 = True indicates we use RDP-based Gaussian-SVT with c=1, else c>1
+    The Gaussian-based SVT mechanism is described in
+    https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf
+
+    The mechanism takes the parameter k and c.k is the maximum length before
+    the algorithm stops. c is the cut-off parameter.  Setting rdp_c_1 = True implies that
+    we use RDP-based Gaussian-SVT with c=1, else c>1.
 
     """
     def __init__(self,params,name='GaussianSVT', rdp_c_1=True):
@@ -219,8 +357,8 @@ class GaussianSVT_Mechanism(Mechanism):
 
 class LaplaceSVT_Mechanism(Mechanism):
     """
-    Laplace SVT (c>=1) used in NeurIPS-20
-    parameters k and sigma
+    Laplace SVT (c>=1) with a RDP description.
+    The mechanism takes the parameter k and sigma.
     k is the maximum length before the algorithm stops
     We provide the RDP implementation and pure-DP implementation
     """
@@ -235,11 +373,11 @@ class LaplaceSVT_Mechanism(Mechanism):
 
 class StageWiseMechanism(Mechanism):
     """
-    The StageWise generalized SVT is proposed by Zhu et.al., NeurIPS-20
-    used for Sparse vector technique with Gaussian Noise
-
-    c is the number of tops (composition)
-    k is the maximum limit for each chunk, e.g., the algorithm restarts whenever it encounters a top or reaches k limit.
+    The StageWise generalized SVT is proposed by Zhu et.al., NeurIPS-20 (see Algorithm 3).
+    This mechanism generalizes the Gaussian-based SVT.
+    The mechanism takes two parameter c and k. c is the cut-off parameter (the number of tops in svt)
+    and k denotes the  maximum limit for each chunk, e.g., the algorithm restarts whenever it encounters
+     a top or reaches k limit.
     """
     def __init__(self, params=None,approxDP_off=False, name='StageWiseMechanism'):
         # the sigma parameter is the std of the noise divide by the l2 sensitivity
@@ -250,8 +388,9 @@ class StageWiseMechanism(Mechanism):
         self.delta0 = 0
 
         if not approxDP_off:  # Direct implementation of approxDP
-            new_approxdp = lambda x: dp_bank.eps_generalized_gaussian(x, **params)
+            new_approxdp = lambda x: dp_bank.get_generalized_gaussian(params, x)
             self.propagate_updates(new_approxdp, 'approxDP_func')
+
 
 
 # # Example 1: Short implementation of noisy gradient descent mechanism as a composition of GMs
@@ -303,4 +442,82 @@ class StageWiseMechanism(Mechanism):
 #     online_ngd = compose([online_ngd, mech_cur])
 #
 # # The above is quite general and can be viewed as a privacy accountant
+
+class NoisySGD_Mechanism(Mechanism):
+    def __init__(self, prob, sigma, niter, PoissonSampling=True, name='NoisySGD'):
+        Mechanism.__init__(self)
+        self.name = name
+        self.params = {'prob': prob, 'sigma': sigma, 'niter': niter,
+                       'PoissonSampling': PoissonSampling}
+
+        # create such a mechanism as in previously
+        subsample = transformer_zoo.AmplificationBySampling(PoissonSampling=PoissonSampling)
+        # by default this is using poisson sampling
+
+        mech = ExactGaussianMechanism(sigma=sigma)
+        prob = 0.01
+        # Create subsampled Gaussian mechanism
+        SubsampledGaussian_mech = subsample(mech, prob, improved_bound_flag=True)
+        # for Gaussian mechanism the improved bound always applies
+
+        # Now run this for niter iterations
+        compose = transformer_zoo.Composition()
+        mech = compose([SubsampledGaussian_mech], [niter])
+
+        # Now we get it and let's extract the RDP function and assign it to the current mech being constructed
+        rdp_total = mech.RenyiDP
+        self.propagate_updates(rdp_total, type_of_update='RDP')
+
+
+class NoisyGD_Mechanism(GaussianMechanism):
+    # With a predefined sequence of noise multipliers.
+    def __init__(self,sigma_list, name='NoisyGD'):
+        GaussianMechanism.__init__(self, sigma=np.sqrt(1/np.sum(1/sigma_list**2)), name=name)
+        self.params = {'sigma_list': sigma_list}
+
+
+
+class SubSampleGaussian_phi(Mechanism):
+    """
+    This mechanism supports the phi-function based characterization for both Poisson subsample Gaussian
+    mechanism and the Subset Gaussian mechanism.
+    For details of phi-function based characterization, see https://arxiv.org/pdf/2106.08567.pdf Algorithm 2
+    """
+    def __init__(self, sigma, gamma, name='Subsample_Gaussian_phi', lower_bound = False, upper_bound=False):
+        """
+        sigma: the std of the noise divide by the l2 sensitivity.
+        gamma: the sampling probability.
+        lower_bound: if the lower_bound is True, the privacy cost (delta(epsilon) or delta(epsilon)) is a valid lower bound
+        of the true privacy guarantee besides negligible errors induced by trunction.
+        upper_bound: if the upper_bound is True, the privacy cost (delta(epsilon) or delta(epsilon)) is a valid upper bound
+        of the true privacy guarantee besides negligible errors induced by trunction.
+        """
+        Mechanism.__init__(self)
+
+        self.name = name  # When composing
+        self.params = {'sigma': sigma,'gamma':gamma}
+
+        self.delta0 = 0
+        if lower_bound:
+            # log_phi_p denotes the approximated phi-function of the privacy loss R.V. log(p/q).
+            # log_phi_q denotes the approximated phi-function of the privacy loss R.V. log(q/p).
+            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x,  phi_min = True)
+            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x,  phi_min = True)
+        elif upper_bound:
+            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x, phi_max=True)
+            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x, phi_max=True)
+
+        else:
+            # The following phi_p and phi_q is for Double quadrature method.
+            # Double quadrature method approximates phi-function using Gaussian quadrature directly.
+            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x)
+            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x)
+
+        self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi')
+
+
+
+
+
+
 
