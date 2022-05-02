@@ -44,12 +44,13 @@ class GaussianMechanism(Mechanism):
             """
             log_phi = lambda x: phi_bank.phi_gaussian({'sigma': sigma}, x)
             self.log_phi_p = self.log_phi_q = log_phi
+            self.exact_phi = True
             # self.cdf tracks the cdf of log(p/q) and the cdf of log(q/p).
             self.propagate_updates((log_phi, log_phi), 'log_phi')
 
             # Propagate the pdf of dominating pairs.
-            def pdf_p(x): return norm.pdf(x, scale=sigma**2)
-            def pdf_q(x): return norm.pdf((x-1.), scale=sigma**2)
+            def pdf_p(x): return norm.pdf((x-1.), scale=sigma**2)
+            def pdf_q(x): return norm.pdf(x, scale=sigma**2)
             self.propagate_updates((pdf_p, pdf_q), 'pdf')
             """
             Moreover, we know the closed-form expression of the CDF of the privacy loss RV
@@ -483,14 +484,10 @@ class SubSampleGaussian_phi(Mechanism):
     mechanism and the Subset Gaussian mechanism.
     For details of phi-function based characterization, see https://arxiv.org/pdf/2106.08567.pdf Algorithm 2
     """
-    def __init__(self, sigma, gamma, name='Subsample_Gaussian_phi', lower_bound = False, upper_bound=False):
+    def __init__(self, sigma, gamma, name='Subsample_Gaussian_phi'):
         """
         sigma: the std of the noise divide by the l2 sensitivity.
         gamma: the sampling probability.
-        lower_bound: if the lower_bound is True, the privacy cost (delta(epsilon) or delta(epsilon)) is a valid lower bound
-        of the true privacy guarantee besides negligible errors induced by trunction.
-        upper_bound: if the upper_bound is True, the privacy cost (delta(epsilon) or delta(epsilon)) is a valid upper bound
-        of the true privacy guarantee besides negligible errors induced by trunction.
         """
         Mechanism.__init__(self)
 
@@ -498,20 +495,11 @@ class SubSampleGaussian_phi(Mechanism):
         self.params = {'sigma': sigma,'gamma':gamma}
 
         self.delta0 = 0
-        if lower_bound:
-            # log_phi_p denotes the approximated phi-function of the privacy loss R.V. log(p/q).
-            # log_phi_q denotes the approximated phi-function of the privacy loss R.V. log(q/p).
-            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x,  phi_min = True)
-            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x,  phi_min = True)
-        elif upper_bound:
-            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x, phi_max=True)
-            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x, phi_max=True)
 
-        else:
-            # The following phi_p and phi_q is for Double quadrature method.
-            # Double quadrature method approximates phi-function using Gaussian quadrature directly.
-            self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x)
-            self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x)
+        # log_phi_p denotes the approximated phi-function of the privacy loss R.V. log(p/q).
+        # log_phi_q denotes the approximated phi-function of the privacy loss R.V. log(q/p).
+        self.log_phi_p = lambda x: phi_bank.phi_subsample_gaussian_p(self.params, x)
+        self.log_phi_q = lambda x: phi_bank.phi_subsample_gaussian_q(self.params, x)
 
         self.propagate_updates((self.log_phi_p, self.log_phi_q), 'log_phi')
 
