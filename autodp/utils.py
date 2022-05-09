@@ -52,7 +52,7 @@ def stable_sum_signed(xs, x, ys, y):
         s = ys
         out = stable_logsumexp_two(x, y)
     elif ys:
-        s, out = stable_log_diff_exp_log_diff_exp(x, y)
+        s, out = stable_log_diff_exp(x, y)
     else:
         s, out = stable_log_diff_exp(y, x)
     return s, out
