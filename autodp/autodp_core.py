@@ -130,10 +130,10 @@ class Mechanism():
 
     def get_cdf_p2q(self, x):
         # Output cdf as a function of log(p/q)
-        return self.cdf_p(x)
+        return self.cdf_p2q(x)
     def get_cdf_q2p(self, x):
         # Output cdf as a function of log(q/p)
-        return self.cdf_q(x)
+        return self.cdf_q2p(x)
     def get_pureDP(self):
         return self.eps_pureDP
 
@@ -320,7 +320,7 @@ class Mechanism():
             self.log_phi_p2q = log_phi_p2q
             self.log_phi_q2p = log_phi_q2p
             # Apply Gaussian quadrature to do numerical inversion.
-            # cdf_p is the cdf of log(p/q), and cdf_q is the cdf for log(q/p).
+            # cdf_p2q is the cdf of log(p/q), and cdf_q2p is the cdf for log(q/p).
             cdf_p2q = lambda x: converter.phi_to_cdf(log_phi_p2q, x, n_quad = n_quad)
             cdf_q2p = lambda x: converter.phi_to_cdf(log_phi_q2p, x, n_quad = n_quad)
 
