@@ -1,30 +1,17 @@
 # This module implements the log of characteristic  function templates for various
 # mechanisms (see  https://arxiv.org/abs/2106.08567)
 # We will use a pair of characteristic function to describe each mechanism.
-# The conversion back to delta(eps) or eps(delta) will use numerical inversion, which
-# detailed in cdf_bank.
+# The conversion back to delta(eps) or eps(delta) will use numerical inversion, which details in converter.py
 
 
 import numpy as np
-import math
-import time
-from scipy.stats import norm
-
-from scipy.fft import fft
 from autodp import utils
 import scipy.integrate as integrate
 from autodp.utils import stable_logsumexp, _log1mexp
-from scipy.optimize import minimize_scalar
 
 
-def stable_log_diff_exp(x, y):
-    # ensure that y > x
-    # this function returns the stable version of log(exp(y)-exp(x)) if y > x
 
-    s = True
-    mag = y + np.log(1 - np.exp(x - y))
 
-    return s, mag
 
 
 def phi_gaussian(params, t):

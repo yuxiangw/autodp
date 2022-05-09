@@ -16,7 +16,7 @@ The detailed method is described in https://arxiv.org/pdf/2106.08567.pdf
 
 
 """
-from autodp.mechanism_zoo import GaussianMechanism, RandresponseMechanism, ExactGaussianMechanism, SubSampleGaussian_phi
+from autodp.mechanism_zoo import GaussianMechanism, RandresponseMechanism, ExactGaussianMechanism, SubsampleGaussianMechanism
 from autodp.transformer_zoo import Composition, ComposeAFA, ComposeGaussian, AmplificationBySampling
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,10 +26,9 @@ import time
 doc = {}
 delta = 1e-10
 # the number of compositions
-#klist = [80 * i for i in range(2, 15)][3:]
-klist =[1]
-#for sigma in [30, 60]:
-for sigma in [50, 60]:
+klist = [80 * i for i in range(2, 15)][3:]
+
+for sigma in [30, 60]:
     # epsilon computed through RDP
     eps_rdp = []
     # Analytical Gaussian
