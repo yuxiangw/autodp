@@ -193,7 +193,7 @@ class ExponentialMechanism(zCDP_Mechanism):
         self.propagate_updates(eps, 'pureDP')
 
         if not RDP_off:
-            new_rdp = lambda x: rdp_bank.RDP_pureDP({'eps': eps/2.}, x)
+            new_rdp = lambda x: rdp_bank.RDP_pureDP({'eps': eps}, x)
             self.propagate_updates(new_rdp, 'RDP')
 
         def func(t):
@@ -496,7 +496,7 @@ class NoisySGD_Mechanism(Mechanism):
         # by default this is using poisson sampling
 
         mech = ExactGaussianMechanism(sigma=sigma)
-        prob = 0.01
+        prob = prob
         # Create subsampled Gaussian mechanism
         SubsampledGaussian_mech = subsample(mech, prob, improved_bound_flag=True)
         # for Gaussian mechanism the improved bound always applies

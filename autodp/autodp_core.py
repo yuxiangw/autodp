@@ -130,10 +130,10 @@ class Mechanism():
 
     def get_cdf_p2q(self, x):
         # Output cdf as a function of log(p/q)
-        return self.cdf_p(x)
+        return self.cdf_p2q(x)
     def get_cdf_q2p(self, x):
         # Output cdf as a function of log(q/p)
-        return self.cdf_q(x)
+        return self.cdf_q2p(x)
     def get_pureDP(self):
         return self.eps_pureDP
 
