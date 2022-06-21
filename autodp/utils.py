@@ -9,10 +9,10 @@ def stable_logsumexp(x):
 
 def stable_logsumexp_two(x,y):
     a = np.maximum(x,y)
-    if np.isneginf(a):
-        return a
-    else:
-        return a + np.log(np.exp(x-a) + np.exp(y-a))
+    #if np.isneginf(a):
+    #    return a
+    #else:
+    return a + np.log(np.exp(x-a) + np.exp(y-a))
 
 def stable_log_diff_exp(x, y):
     # ensure that y > x
@@ -272,3 +272,5 @@ def RDP_linear_interpolation(func,x):
         epsinf,
         ((x - xf) * (xc-1)* func(xc) + (1 - (x - xf)) * (xf-1)*func(xf)) / (x - 1)
     )
+
+
