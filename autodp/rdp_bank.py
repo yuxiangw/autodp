@@ -6,6 +6,12 @@ These are used to create symbolic randomized functions for the RDP accountant to
 
 Some of the functions contain the renyi divergence of two given distributions, these are useful to keep track of
 the per-instance RDP associated with two given data sets.
+
+TO CONTRIBUTORS:  1. any new addition to the rdp_bank should include a reference to the mechanism of
+    interesting and the derivation of its RDP.
+    2. You should try providing an implementation fo the entire range of alpha >0. If you do not
+       have alpha <1, feel free to use any upper bound, e.g., the bound for alpha = 1.
+
 """
 
 
@@ -50,13 +56,20 @@ def RDP_laplace(params, alpha):
     # assert(b > 0)
     # assert(alpha >= 0)
     alpha=1.0*alpha
-    if alpha <= 1:
-        return (1 / b + np.exp(-1 / b) - 1)
-    elif np.isinf(alpha):
+
+    if np.isinf(alpha):
         return 1/b
-    else:  # alpha > 1
+    elif alpha == 1:
+        # KL-divergence
+        return 1 / b + np.exp(-1 / b) - 1
+    elif alpha > 1:  # alpha > 1
         return utils.stable_logsumexp_two((alpha-1.0) / b + np.log(alpha / (2.0 * alpha - 1)),
                                            -1.0*alpha / b + np.log((alpha-1.0) / (2.0 * alpha - 1)))/(alpha-1)
+    elif alpha == 0.5:
+        return -2*(-1.0/(2*b) + np.log(1 + 1.0/(2*b)))#   -2*np.log(np.exp(-1.0/(2*b))*(1+1.0/(2*b)))
+    else:
+        return np.log(alpha/(2.0*alpha-1)*np.exp((alpha-1.0)/b) + (alpha-1.0)/(2.0*alpha-1)*np.exp(-1.0*alpha/b))/(alpha-1)
+        # Handling the case when alpha = 1/2?
 
 def RDP_zCDP(params,alpha):
     """
