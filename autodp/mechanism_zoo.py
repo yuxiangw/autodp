@@ -263,6 +263,7 @@ class ExponentialMechanism(zCDP_Mechanism):
     def __init__(self, eps, name='ExpMech'):
         zCDP_Mechanism.__init__(self, eps**2/8, name=name)
         # the zCDP bound is from here: https://arxiv.org/pdf/2004.07223.pdf
+        self.params['eps'] = eps
 
         # TODO: Bounded range should imply a slightly stronger RDP that dominates the following
         self.eps_pureDP = eps
