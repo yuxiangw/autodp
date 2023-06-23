@@ -316,7 +316,7 @@ class AmplificationBySampling(Transformer):
         # propagate to approxDP as well.
 
         if self.PoissonSampling:
-            assert mechanism.neighboring is not 'replace_one', "mechanism's replace_one notion of DP is " \
+            assert mechanism.neighboring != 'replace_one', "mechanism's replace_one notion of DP is " \
                                                    "incompatible with Privacy Amplification " \
                                                    "by Poisson sampling"
             # check that the input mechanism uses the standard add-or-remove notion of DP.
@@ -325,7 +325,7 @@ class AmplificationBySampling(Transformer):
             newmech.replace_one = False
 
         else:  # if we want subset subsampled DP
-            assert mechanism.neighboring is not 'add_remove', "mechanism's add-remove notion of DP is " \
+            assert mechanism.neighboring != 'add_remove', "mechanism's add-remove notion of DP is " \
                                                    "incompatible with Privacy Amplification " \
                                                    "by subsampling without replacements"
             # TODO: implement a transformer that convert add/remove to replace_one notion of DP.
