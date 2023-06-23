@@ -720,9 +720,9 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
         else:
             bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
-        results = minimize_scalar(normal_equation, bracket=[-1,-2])
-        #results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
-        #                          options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
+        #results = minimize_scalar(normal_equation, bracket=[-1,-2])
+        results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
+                                  options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
         if results.success:
             if abs(results.fun) > 1e-4 and abs(results.x)>1e-10:
                 # This means that we hit xatol (x is close to 0, but
