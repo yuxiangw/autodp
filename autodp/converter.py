@@ -92,7 +92,7 @@ def rdp_to_delta(rdp):
                         result = utils.stable_logsumexp_two(term_1 - np.log(x)- np.log(delta),0)
                         return min(result*1.0/(x - 1), bbghs)
 
-                results = minimize_scalar(fun, method='Brent', bracket=(1, 2), bounds=[1, 100000])
+                results = minimize_scalar(fun, method='Brent', bracket=(1, 2))#, bounds=[1, 100000])
                 if results.success:
                    # print('delta', delta,'eps under rdp', results.fun)
                     return results.fun
@@ -146,7 +146,7 @@ def rdp_to_approxdp(rdp, alpha_max=np.inf, BBGHS_conversion=True):
                     else:
                         return np.log(1 / delta) / (x - 1) + rdp(x)
 
-            results = minimize_scalar(fun, method='Brent', bracket=(1,2), bounds=[1, alpha_max])
+            results = minimize_scalar(fun, method='Brent', bracket=(1,2))#, bounds=[1, alpha_max])
             if results.success:
                 return results.fun
             else:
@@ -250,7 +250,7 @@ def rdp_to_fdp(rdp, alpha_max=np.inf):
                 return -single_fdp(x)
 
         # This will use brent to start with 1,2.
-        results = minimize_scalar(fun, bracket=(0.5, 2), bounds=(0.5, alpha_max))
+        results = minimize_scalar(fun, bracket=(0.5, 2))#, bounds=(0.5, alpha_max))
         if results.success:
             return -results.fun
         else:
@@ -527,7 +527,7 @@ def rdp_to_fdp_and_fdp_grad_log(rdp, alpha_max=np.inf):
                 return log_one_minus_fdp_alpha(logx)
 
         # This will use brent to start with 1,2.
-        results = minimize_scalar(fun, bracket=(0.5, 2), bounds=(0.5, alpha_max))
+        results = minimize_scalar(fun, bracket=(0.5, 2))#, bounds=(0.5, alpha_max))
         if results.success:
             return [results.fun, results.x]
         else:
@@ -720,9 +720,9 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
         else:
             bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
-        #results = minimize_scalar(normal_equation, bounds=[-np.inf,0], bracket=[-1,-2])
-        results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
-                                  options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
+        results = minimize_scalar(normal_equation, bracket=[-1,-2])
+        #results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
+        #                          options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
         if results.success:
             if abs(results.fun) > 1e-4 and abs(results.x)>1e-10:
                 # This means that we hit xatol (x is close to 0, but
