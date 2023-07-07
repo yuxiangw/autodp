@@ -347,7 +347,8 @@ class GaussianSVT_Mechanism(Mechanism):
         self.name=name
         if rdp_c_1 == True:
             self.name = name + 'c_1'
-            self.params = {'sigma': params['sigma'], 'sigma_nu': params['sigma_nu'], 'k': params['k'], 'margin':params['margin']}
+            valid_keys = ['sigma', 'k', 'margin', 'sigma_nu', 'Delta', 'sigma2', 'gamma']
+            self.params = dict(filter(lambda tuple: tuple[0] in valid_keys, params.items()))
             new_rdp = lambda x: rdp_bank.RDP_gaussian_svt_c1(self.params, x)
         else:
             self.name = name + 'c>1'
