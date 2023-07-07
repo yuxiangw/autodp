@@ -568,9 +568,7 @@ class anaRDPacct:
                         #                        + 0.5*deltas_local[int(2*np.ceil(j/2.0))-1]) + j*np.log(prob)
                         #             +self.logBinomC[int(mm), j] for j in range(2,int(mm+1),1)]
                         moments = [moment_bound(j) for j in range(3, mm + 1, 1)]
-                        if mm == 50:
-                            print('moments', moments)
-                        print('current alpha', mm, 'rdp',utils.stable_logsumexp([0, moments_two] + moments) )
+
                         return np.minimum(fastupperbound, utils.stable_logsumexp([0, moments_two] + moments))
                     elif mm <= self.m_lin_max:  # compute the bound with stirling approximation. Everything is O(x) now.
                         # moment_bound = lambda j: np.minimum(j * np.log(np.exp(func(np.inf)) - 1)

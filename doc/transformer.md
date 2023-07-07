@@ -18,3 +18,10 @@ class Transformer():
 | Function| Description |
 | --- | ----------- |
 |\__call__(self, *args, **kwargs) | Invokes the computation with the given arguments in the given context. |
+
+#### Examples of Transformer
+
+| Instantiation | Description | Feature |
+| --- | -------------------------- | --- |
+| Composition | The generic composition class that supports RDP-based composition | RDP-based composition |
+

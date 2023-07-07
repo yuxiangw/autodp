@@ -6,7 +6,7 @@ from math import exp, sqrt
 from scipy.special import erf
 from scipy.optimize import brentq
 
-from autodp import rdp_acct, rdp_bank, dp_acct, dp_bank
+from autodp import rdp_acct, rdp_bank
 
 
 # Subsampling lemma and its inverse

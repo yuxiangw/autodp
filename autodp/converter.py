@@ -1,5 +1,16 @@
-# This module implements all known conversions from DP
-
+"""
+This module implements all known conversions from DP
+1. puredp_to_approxdp
+2. rdp_to_delta and rdp_to_aapproxDP
+3. For  fDP conversions, we implement:
+    a. single_rdp_to_fdp
+    b. approxdp_func_to_fdp
+    c. puredp_to_fdp(eps) # From Wasserman and Zhou
+4. For phi function to approxDP conversions, we implement:
+    a. pdf_to_phi (convert pdf of privacy loss R.V. to the characteristic function of privacy loss R.V>)
+    b. cdf_to_approxdp and cdf_to_approxdelta
+    c. phi_to_cdf
+"""
 
 
 import numpy as np
@@ -9,6 +20,7 @@ import scipy.integrate as integrate
 from autodp import rdp_bank
 from scipy.optimize import minimize_scalar, root_scalar
 from autodp import utils
+from scipy.fft import fft
 import time
 
 def puredp_to_rdp(eps):
@@ -782,14 +794,7 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
 
 
-def cdf_to_dis_phi_p(cdf_p):
-    """
-    # TODO: Convert cdf_p to the discrete phi-function. The algorithm is based on Gopi et al.
 
-    Truncation parameter L, the composed PLD will be supported in [-L, L].
-    :param cdf_p:
-    :return:
-    """
 
 
 def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
@@ -811,9 +816,10 @@ def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
         log_e = np.log(x)
         # delta = 1 - result
         result = cdf_p(log_e) + x*cdf_q(-log_e)
-        print('eps in binary search',log_e, 'current delta', 1-result)
+        print('Binary search epsilon',log_e, 'current delta', 1-result)
         return result
-    exp_eps = numerical_inverse(trade_off, [0,1])
+    # tol denotes the relative difference in delta term
+    exp_eps = numerical_inverse(trade_off, [0,1], tol=1e-2)
     def approxdp(delta):
         t = exp_eps(1 - delta)
         return np.log(t)
@@ -891,6 +897,91 @@ def pdf_to_phi(p, q, t):
     return np.log(res_p[0])
 
 
+def phi_to_cdf(log_phi, ell, n_quad=500, extra_para=None):
+    """
+     This function computes the CDF of privacy loss R.V. via Levy theorem.
+     https://en.wikipedia.org/wiki/Characteristic_function_%28probability_theory%29#Inversion_formulae
+     The integration is implemented through Gaussian quadrature.
+
+     Args:
+        log_phi: the log of characteristic (phi)  function.
+        ell: the privacy loss RV is evaluated at ell
+        extra_para: extra parameters used to describe the privacy loss R.V..
+
+    Return: the CDF of the privacy loss RV when evaluated at ell。
+    """
+
+    def qua(t):
+        """
+        Convert [-1, 1] to an infinite integral.
+        """
+        new_t = t*1.0/(1-t**2)
+        phi_result = [log_phi(x) for x in new_t]
+        inte_function = 1.j/new_t * np.exp(-1.j*new_t*ell)*np.exp(phi_result)
+        return inte_function
+    # n is the maximum sampling point used in Gaussian quadrature, setting it to be >700 is usually very accurate.
+    inte_f = lambda t: qua(t) * (1 + t ** 2) / ((1 - t ** 2) ** 2)
+    res = integrate.fixed_quad(inte_f, -1.0, 1.0, n =n_quad)
+
+    result = res[0]
+    return np.real(result)/(2*np.pi)+0.5
+
+
+def cdf_approx_fft(log_phi, L, N=5e6):
+    """
+     Future work: This function converts the characteristic function to the CDF using FFT.
+
+     The detailed numerical inversion can be found in Algorithm B in
+     https://www.tandfonline.com/doi/abs/10.1080/03461238.1975.10405087. This approach
+     does not involve truncation errors.
+     We consider privacy loss R.V. is zj: = -b + lam*j, where lam = 2pi/(eta*(2N-1)).
+
+
+     Args:
+        log_phi: the log of characteristic (phi)  function.
+        L: Limit for the approximation of the privacy loss distribution integral.
+        N: Number of points in FFT (FFT is over 2N-1 points)
+
+    Return:
+        A list of CDFs of privacy loss R.V. evaluated between [-L, L]
+
+    """
+
+    # evaluate the j-th privacy loss r.v. zj: = -b + lam*j, where lam = 2pi/(eta*(2N-1)).
+    eta = np.pi / L
+    N = int(N)
+    b = -np.pi / eta
+    lam = 2 * np.pi / (eta * (2 * N - 1))
+    t_list = [m_hat + 1 - N for m_hat in range(2 * N - 1)]
+    t0 = time.time()
+    c_nu = lambda t: (1 - t) * np.cos(np.pi * t) + np.sin(np.pi * t) / np.pi
+
+    # FFT is used for the calculation of the trigonometric sums appearing in the formulas.
+    # l == 0 is undefined in the original formula, thus we need to exclude it from the fft.
+    def f_phi(l):
+        if l == 0:
+            return 0
+        nu = l * 1.0 / N
+        c_t = c_nu(abs(nu))
+        return c_t * np.exp(log_phi(l * eta) - 1.j * eta * b * l) / l
+
+    phi_list = [f_phi(m_hat) for m_hat in t_list]
+    fft_res = fft(phi_list)
+
+    fft_norm = [fft_res[j] * np.exp(1.j * (N - 1) * 2.0 / (2. * N - 1) * j * np.pi) for j in range(2 * N - 1)]
+
+    """
+    cdf[j] denotes the cdf of log(p/q) when evaluates at zj, zj: = -b + lam*j.
+    the range of z is [-pi/eta, pi/eta], the mesh-size on zj is lam. To get a good approximation on cdf,
+     we  need eta*N to be a large number.
+
+    cdf(z) = 0.5 + eta*z/(2pi) -fft_res[z]
+    """
+    convert_z = lambda j: b + lam * j
+    cdf = [0.5 + eta * convert_z(j) / (2 * np.pi) - 1. / (2 * np.pi * 1.j) * fft_norm[j] for j in range(2 * N - 1)]
+    return cdf
+
+
 def cdf_to_approxdelta_fft(cdf_p, cdf_q, l =1e4):
     """
     Future work: Returns delta as a function of epsilon using FFT.
@@ -962,7 +1053,7 @@ def fdp_to_approxdp(fdp):
     #     return np.log(exp_eps(-np.log(delta)))
 
     def neg_fstar_neg_input(x):
-        return -fstar(-x)
+        return -1.0*fstar(-1.0*x)
 
     exp_eps = numerical_inverse(neg_fstar_neg_input,[0,1])
     def approxdp(delta):
@@ -971,7 +1062,7 @@ def fdp_to_approxdp(fdp):
     return approxdp
 
 
-def numerical_inverse(f, bounds=[1, np.inf]):
+def numerical_inverse(f, bounds=[1, np.inf], tol=1e-6):
     # of a scalar, monotonic function
     def inv_f(y):
         if bounds:
@@ -985,8 +1076,8 @@ def numerical_inverse(f, bounds=[1, np.inf]):
         def normal_equation(x):
             return abs(fun(x))
 
-        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-10)
-        #results = minimize_scalar(normal_equation, bounds=[1,np.inf], bracket=[1,2], tol=1e-3)
+        #results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-10)
+        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1,2], tol=tol)
 
 
         #results = root_scalar(fun, options={'disp': False})
