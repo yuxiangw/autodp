@@ -352,7 +352,7 @@ class GaussianSVT_Mechanism(Mechanism):
             new_rdp = lambda x: rdp_bank.RDP_gaussian_svt_c1(self.params, x)
         else:
             self.name = name + 'c>1'
-            self.params = {'sigma':params['sigma'],'sigma_nu': params['sigma_nu'], 'k':params['k'], 'c':params['c']}
+            self.params = {'sigma':params['sigma'],'k':params['k'], 'c':params['c']}
             new_rdp = lambda x: rdp_bank.RDP_gaussian_svt_cgreater1(self.params, x)
         self.propagate_updates(new_rdp, 'RDP')
 
