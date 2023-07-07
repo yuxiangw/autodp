@@ -385,11 +385,11 @@ class StageWiseMechanism(Mechanism):
         Mechanism.__init__(self)
 
         self.name = name # When composing
-        self.params = params
+        self.params = {'sigma': params['sigma'], 'k':params['k'], 'c':params['c']}
         self.delta0 = 0
 
         if not approxDP_off:  # Direct implementation of approxDP
-            new_approxdp = lambda x: dp_bank.eps_generalized_gaussian(params, x)
+            new_approxdp = lambda x: dp_bank.get_generalized_gaussian(params, x)
             self.propagate_updates(new_approxdp, 'approxDP_func')
 
 
