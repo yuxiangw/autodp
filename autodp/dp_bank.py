@@ -145,4 +145,4 @@ def get_eps_randresp_optimal(p,delta):
     elif delta >= 2*p - 1:
         return 0.0
     else:
-        return np.log(p-delta) - np.log(1 - p)
+        return np.log(p-delta) - np.log(1 - p) 
