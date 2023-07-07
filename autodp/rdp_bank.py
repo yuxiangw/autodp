@@ -6,13 +6,19 @@ These are used to create symbolic randomized functions for the RDP accountant to
 
 Some of the functions contain the renyi divergence of two given distributions, these are useful to keep track of
 the per-instance RDP associated with two given data sets.
+
+TO CONTRIBUTORS:  1. any new addition to the rdp_bank should include a reference to the mechanism of
+    interesting and the derivation of its RDP.
+    2. You should try providing an implementation fo the entire range of alpha >0. If you do not
+       have alpha <1, feel free to use any upper bound, e.g., the bound for alpha = 1.
+
 """
 
 
 import numpy as np
 import math
 from autodp import utils
-from autodp.utils import _log1mexp, logcomb, stable_logsumexp
+from autodp.utils import _log1mexp
 
 
 def stable_log_diff_exp(x):
@@ -50,13 +56,20 @@ def RDP_laplace(params, alpha):
     # assert(b > 0)
     # assert(alpha >= 0)
     alpha=1.0*alpha
-    if alpha <= 1:
-        return (1 / b + np.exp(-1 / b) - 1)
-    elif np.isinf(alpha):
+
+    if np.isinf(alpha):
         return 1/b
-    else:  # alpha > 1
+    elif alpha == 1:
+        # KL-divergence
+        return 1 / b + np.exp(-1 / b) - 1
+    elif alpha > 1:  # alpha > 1
         return utils.stable_logsumexp_two((alpha-1.0) / b + np.log(alpha / (2.0 * alpha - 1)),
                                            -1.0*alpha / b + np.log((alpha-1.0) / (2.0 * alpha - 1)))/(alpha-1)
+    elif alpha == 0.5:
+        return -2*(-1.0/(2*b) + np.log(1 + 1.0/(2*b)))#   -2*np.log(np.exp(-1.0/(2*b))*(1+1.0/(2*b)))
+    else:
+        return np.log(alpha/(2.0*alpha-1)*np.exp((alpha-1.0)/b) + (alpha-1.0)/(2.0*alpha-1)*np.exp(-1.0*alpha/b))/(alpha-1)
+        # Handling the case when alpha = 1/2?
 
 def RDP_zCDP(params,alpha):
     """
@@ -359,20 +372,15 @@ def RDP_gaussian_svt_cgreater1(params, alpha):
 
     Args:
         k:the maximum length before svt stops
-        sigma: noise added to the threshold divide by L2 sensitivity. 
-		sigma_nu: noise added to the query divide by 2 * L2 sensitivity.
+        sigma: noise added to the threshold.
         c: the cut-off parameter in SVT.
     """
-    sigma_rho = params['sigma']
-    sigma_nu = params['sigma_nu']
+    sigma = params['sigma']
     c = max(params['c'], 1)
     k = params['k']  # the algorithm stops either k is achieved or c is achieved
-    rdp_rho = 0.5 / (sigma_rho ** 2) * alpha
-    rdp_nu = 0.5 / (sigma_nu ** 2) * alpha
-    #c_log_n_c = c * np.log(k / c) # approximate bound
-    log_comb = [logcomb(k, i) for i in range(c+1)]
-    log_sum_comb = stable_logsumexp(log_comb)
-    ret_rdp = log_sum_comb * 1.0 / (alpha - 1) + rdp_rho + rdp_nu * c
+    rdp_rho = 0.5 / (sigma ** 2) * alpha
+    c_log_n_c = c * np.log(k / c)
+    ret_rdp = c_log_n_c * 1.0 / (alpha - 1) + rdp_rho * (c + 1)
     return ret_rdp
 
 
