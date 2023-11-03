@@ -389,31 +389,63 @@ def RDP_gaussian_svt_c1(params, alpha):
     The RDP of the gaussian-based SVT with the cut-off parameter c=1.
 
     The detailed algorithm is described in Theorem 8 in
-    https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf/
+    https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf
 
-    Args:
-        k:the maximum length before svt stops
-        sigma: noise added to the threshold.
-        c: the cut-off parameter in SVT.
+    A special case, where $k$ is not required, occurs when:
+    1. Queries are non-negative, and have low-sensitivity (assumed),
+    2. $\sigma_2 \geq \sqrt{3} \sigma_1$,
+    3. $\gamma = 2$
+    
+    Calculates in the standard bound and the special case (Proposition 10) when applicable.
+
+    params args:
+        k (int, optional): the maximum length before svt stops (used in Theorem 8. -- general case)
+        sigma (float): noise added to the threshold ($\sigma_1$ ($\sigma_{\\rho}$) in [ZW2020]).
+        sigma_nu (float): noise added to each query ($\sigma_2$ ($\sigma_{\nu}$) in [ZW2020]).
+            Defaults to \sqrt{3} \sigma_{1}
+        Delta (float): global sensitivity for each query
+        margin (float): query threshold parameter ($T$ in [ZW2020])
+        gamma (float): positive multiplicative factor (default=2)
     """
-    sigma = params['sigma']
-    k = params['k']
-    margin = params['margin']
-    c = 1
+    # API expects `sigma` to be defined for all gaussian mechanisms, let sigma=sigma_1:
+    sigma_1 = params['sigma']
+    # [ZW2020] denotes sigma_nu as sigma_2. By default, calibrate query noise to apply Prop. 10:
+    sigma_2 = params.get('sigma_nu', np.sqrt(3) * sigma_1)
+    # AutoDP uses sigma2 as a param, for consistency we support it
+    sigma_2 = params.get('sigma2', sigma_2)
+    margin = params.get('margin', 0.)
+    Delta = params.get('Delta', 1.)
+    gamma = params.get('gamma', 2.)
 
+    rdp_rho = alpha * Delta**2 / (sigma_1 ** 2)
+    # By Theorem 8, $\eps_{\nu}(\alpha)$ is upper bounded by 2 \Delta.
+    rdp_nu = 2 * alpha * Delta**2 / (sigma_2 **2 )
 
-    rdp_rho = 0.5 / (sigma ** 2) * alpha
+    # If $k$ provided, compute the standard bound
+    ret_rdp = np.inf
+    if 'k' in params:
+        k = params['k']
+        ret_rdp = np.divide(np.log(k) , alpha - 1, where=alpha!=1) + rdp_rho + rdp_nu
+    
+    # Check if the conditions for the Propisition 10 are satisfied:
+    if sigma_2 < np.sqrt(gamma + 1) * sigma_1:
+        # Check if k is defined, if not, no bound can be applied correctly
+        assert 'k' in params, "$k$ must be defined if Proposition 10 is not applicable."
+        return ret_rdp
 
-    ret_rdp = np.log(k) / (alpha - 1) + rdp_rho * 2
-    if alpha == 1:
-        return ret_rdp * c
-    ################ Implement corollary 15 in NeurIPS-20
-    inside_part = np.log(2 * np.sqrt(3) * math.pi * (1 + 9 * margin ** 2 / (sigma ** 2)))
-    moment_term = utils.stable_logsumexp_two(0, inside_part + margin ** 2 * 1.0 / (sigma ** 2))
-    moment_term = moment_term / (2.0 * (alpha - 1))
-    moment_based = moment_term + rdp_rho * 2
+    # Proposition 10. Bound the stopping time by \E[\E[K | \rho=z]^{\gamma}], where K is a random stopping time
+    stop_time_log_part = np.sqrt(1 + gamma)
+    stop_time_log_part = stop_time_log_part * np.power(np.sqrt(2 * np.pi), gamma)
+    stop_time_log_part = stop_time_log_part * ( np.power(( (margin * (1 + gamma))/sigma_1), gamma ) + 1)
+    stop_time_log_part = np.log(stop_time_log_part)
+    stop_time_exp_part = (gamma * margin**2) / (2 * sigma_1**2)
 
-    return min(moment_based, ret_rdp) * c
+    # note exp(0) = 1, which is implicitly added
+    moment_term = utils.stable_logsumexp_two(0, stop_time_log_part + stop_time_exp_part)
+    moment_term = moment_term / (gamma * (alpha - 1))
+
+    moment_based_bound = rdp_rho + rdp_nu + moment_term
+    return min(moment_based_bound, ret_rdp)
 
 
 
