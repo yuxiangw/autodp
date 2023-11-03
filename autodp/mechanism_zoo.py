@@ -431,7 +431,7 @@ class StageWiseMechanism(Mechanism):
         self.delta0 = 0
 
         if not approxDP_off:  # Direct implementation of approxDP
-            new_approxdp = lambda x: dp_bank.get_generalized_gaussian(params, x)
+            new_approxdp = lambda x: dp_bank.get_gaussian_svt(params, x)
             self.propagate_updates(new_approxdp, 'approxDP_func')
 
 

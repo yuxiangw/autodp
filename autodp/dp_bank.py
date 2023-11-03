@@ -85,7 +85,7 @@ def get_eps_ana_gaussian(sigma, delta):
     else:
         raise RuntimeError(f"Failed to find epsilon: {results.flag}")
 
-def eps_generalized_gaussian(x, sigma, delta,k, c, c_tilde):
+def get_eps_gaussian_svt(x, sigma, delta, k, c, c_tilde):
     """
     submodule for generalized SVT with Gaussian noise
     we want to partition c into [c/c'] parts, each part using (k choose c')
