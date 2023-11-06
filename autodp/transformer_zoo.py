@@ -141,14 +141,14 @@ class ComposeAFA(Transformer):
 
 
 # composition of only Gaussian mechanisms
-class ComposeGaussian(Transformer):
+class ComposeGaussian(Composition):
     """ CompositionGaussian is a specialized composation function of ONLY Guassian mechanisms
     output a Mechanism that represents the composed mechanism"""
     def __init__(self):
         Composition.__init__(self)
         self.name = 'ComposeGaussian'
 
-    def compose(self, mechanism_list, coeff_list):
+    def compose(self, mechanism_list, coeff_list, RDP_compose_only=True, BBGHS_conversion=True, fDP_based_conversion=False):
         # Make sure that the list contains only Gaussian mechanisms
         for mech in mechanism_list:
             assert(isinstance(mech, mechanism_zoo.GaussianMechanism)
