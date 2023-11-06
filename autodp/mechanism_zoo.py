@@ -379,7 +379,7 @@ class GaussianSVT_Mechanism(Mechanism):
     The Gaussian-based SVT mechanism is described in
     https://papers.nips.cc/paper/2020/file/e9bf14a419d77534105016f5ec122d62-Paper.pdf
 
-    The mechanism takes the parameter k and c.k is the maximum length before
+    The mechanism takes the parameter k and c. k is the maximum length before
     the algorithm stops. c is the cut-off parameter.  Setting rdp_c_1 = True implies that
     we use RDP-based Gaussian-SVT with c=1, else c>1.
 
@@ -401,15 +401,16 @@ class GaussianSVT_Mechanism(Mechanism):
 class LaplaceSVT_Mechanism(Mechanism):
     """
     Laplace SVT (c>=1) with a RDP description.
-    The mechanism takes the parameter k and sigma.
-    k is the maximum length before the algorithm stops
+    b: the noise scale to perturb the threshold and the query.
+    k: the maximum length before the algorithm steps. k could be infinite.
+
     We provide the RDP implementation and pure-DP implementation
     """
     def __init__(self,params,name='GaussianSVT'):
         Mechanism.__init__(self)
         self.name=name
-        self.params={'b':params['b'],'k':params['k'], 'c':params['c']}
-
+        valid_keys = ['b', 'k', 'c']
+        self.params = dict(filter(lambda tuple: tuple[0] in valid_keys, params.items()))
         new_rdp = lambda x: rdp_bank.RDP_svt_laplace(self.params, x)
         self.propagate_updates(new_rdp, 'RDP')
 
