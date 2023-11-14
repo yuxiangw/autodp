@@ -38,9 +38,9 @@ composed_poissonsampled_mech1 = compose([poisson_sample(gm1,prob,improved_bound_
 
 
 # Now let's do subsampling. First we need to use replace-one version of the base mechanisms.
-gm1.replace_one = True
-gm2.replace_one = True
-SVT.replace_one = True
+gm1.neighboring = "replace_one"
+gm2.neighboring = "replace_one"
+SVT.neighboring = "replace_one"
 
 composed_subsampled_mech = compose([subsample(gm1,prob),
                                     subsample(gm2,prob),

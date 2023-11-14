@@ -200,7 +200,6 @@ class Mechanism():
         elif type_of_update == 'RDP':
             # function output RDP eps as a function of alpha
             self.RenyiDP = converter.pointwise_minimum(self.RenyiDP, func)
-            self.approx_delta = converter.pointwise_minimum(self.approx_delta, converter.rdp_to_delta(self.RenyiDP))
             if fDP_based_conversion:
 
                 fdp_log, fdp_grad_log = converter.rdp_to_fdp_and_fdp_grad_log(func)
@@ -234,12 +233,16 @@ class Mechanism():
                                                             converter.fdp_fdp_grad_to_approxdp(
                                                                 fdp_log, fdp_grad_log,
                                                                 log_flag=True))
+                self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+                          converter.rdp_to_delta(self.RenyiDP, BBGHS_conversion=BBGHS_conversion))
 
                 # self.approxDP = converter.pointwise_minimum(self.approxDP,
                 #                                            converter.fdp_to_approxdp(self.fDP))
             else:
                 self.approxDP = converter.pointwise_minimum(self.approxDP,
                          converter.rdp_to_approxdp(self.RenyiDP, BBGHS_conversion=BBGHS_conversion))
+                self.approx_delta = converter.pointwise_minimum(self.approx_delta,
+                          converter.rdp_to_delta(self.RenyiDP, BBGHS_conversion=BBGHS_conversion))
                 self.fDP = converter.pointwise_maximum(self.fDP,
                                                        converter.approxdp_func_to_fdp(
                                                            self.approxDP))

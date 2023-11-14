@@ -148,7 +148,7 @@ class ComposeGaussian(Composition):
         Composition.__init__(self)
         self.name = 'ComposeGaussian'
 
-    def compose(self, mechanism_list, coeff_list):
+    def compose(self, mechanism_list, coeff_list, RDP_compose_only=True, BBGHS_conversion=True, fDP_based_conversion=False):
         # Make sure that the list contains only Gaussian mechanisms
         for mech in mechanism_list:
             assert(isinstance(mech, mechanism_zoo.GaussianMechanism)

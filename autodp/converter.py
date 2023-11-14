@@ -60,7 +60,7 @@ def puredp_to_approxdp(eps):
     return approxdp
 
 
-def rdp_to_delta(rdp):
+def rdp_to_delta(rdp, BBGHS_conversion=True):
     """
     from RDP to delta with a fixed epsilon
     """
@@ -70,48 +70,64 @@ def rdp_to_delta(rdp):
         """
         approximate delta as a function of epsilon
         """
-
-        def get_eps(delta):
-            if delta == 0:
-                return rdp(np.inf)
+        def get_delta(alpha):
+            if BBGHS_conversion:
+                # Also by Canonne et al., 2020
+                return np.minimum(
+                    (np.exp((alpha-1)*(rdp(alpha)-eps))/alpha)*((1-1/alpha)**(alpha-1)), 1.0)
             else:
-                def fun(x):  # the input the RDP's \alpha
-                    if x <= 1:
-                        return np.inf
-                    else:
+                # Naive conversion from Mironov
+                return np.minimum(np.exp((alpha-1)*(rdp(alpha)-eps)),1.0)
 
-                        if naive:
-                            return np.log(1 / delta) / (x - 1) + rdp(x)
-                        bbghs = np.maximum(rdp(x) + np.log((x-1)/x)
-                                          - (np.log(delta) + np.log(x))/(x-1), 0)
-                        """
-                        The following is for optimal conversion
-                        1/(alpha -1 )log(e^{(alpha-1)*rdp -1}/(alpha*delta) +1 )
-                        """
-                        sign, term_1= utils.stable_log_diff_exp((x-1)*rdp(x),0)
-                        result = utils.stable_logsumexp_two(term_1 - np.log(x)- np.log(delta),0)
-                        return min(result*1.0/(x - 1), bbghs)
-
-                results = minimize_scalar(fun, method='Brent', bracket=(1, 2), bounds=[1, 100000])
-                if results.success:
-                   # print('delta', delta,'eps under rdp', results.fun)
-                    return results.fun
-                else:
-                    return np.inf
-
-
-        def err(delta):
-            current_eps = get_eps(delta)
-            #print('current delta', delta, 'eps', current_eps)
-            return abs(eps - current_eps)
-
-        results = minimize_scalar(err, method='bounded', bounds=[0, 0.1],options={'xatol':1e-14})
+        results = minimize_scalar(get_delta, method = 'Brent', bracket=(1,2))
         if results.success:
-            #print('results', results.x)
-            return results.x
+            # print('delta', delta,'eps under rdp', results.fun)
+            return results.fun
         else:
             print('not found')
-            return 1
+            return 1.0
+
+        # def get_eps(delta):
+        #     if delta == 0:
+        #         return rdp(np.inf)
+        #     else:
+        #         def fun(x):  # the input the RDP's \alpha
+        #             if x <= 1:
+        #                 return np.inf
+        #             else:
+        #
+        #                 if naive:
+        #                     return np.log(1 / delta) / (x - 1) + rdp(x)
+        #                 bbghs = np.maximum(rdp(x) + np.log((x-1)/x)
+        #                                   - (np.log(delta) + np.log(x))/(x-1), 0)
+        #                 """
+        #                 The following is for optimal conversion
+        #                 1/(alpha -1 )log(e^{(alpha-1)*rdp -1}/(alpha*delta) +1 )
+        #                 """
+        #                 sign, term_1= utils.stable_log_diff_exp((x-1)*rdp(x),0)
+        #                 result = utils.stable_logsumexp_two(term_1 - np.log(x)- np.log(delta),0)
+        #                 return min(result*1.0/(x - 1), bbghs)
+        #
+        #         results = minimize_scalar(fun, method='Brent', bracket=(1, 2))#, bounds=[1, 100000])
+        #         if results.success:
+        #            # print('delta', delta,'eps under rdp', results.fun)
+        #             return results.fun
+        #         else:
+        #             return np.inf
+        #
+        #
+        # def err(delta):
+        #     current_eps = get_eps(delta)
+        #     #print('current delta', delta, 'eps', current_eps)
+        #     return abs(eps - current_eps)
+        #
+        # results = minimize_scalar(err, method='bounded', bounds=[0, 0.1],options={'xatol':1e-14})
+        # if results.success:
+        #     #print('results', results.x)
+        #     return results.x
+        # else:
+        #     print('not found')
+        #     return 1
 
 
     return approx_delta
@@ -146,7 +162,7 @@ def rdp_to_approxdp(rdp, alpha_max=np.inf, BBGHS_conversion=True):
                     else:
                         return np.log(1 / delta) / (x - 1) + rdp(x)
 
-            results = minimize_scalar(fun, method='Brent', bracket=(1,2), bounds=[1, alpha_max])
+            results = minimize_scalar(fun, method='Brent', bracket=(1,2))#, bounds=[1, alpha_max])
             if results.success:
                 return results.fun
             else:
@@ -244,13 +260,13 @@ def rdp_to_fdp(rdp, alpha_max=np.inf):
 
         def fun(alpha):
             if alpha < 0.5:
-                return np.inf
+                return 0
             else:
                 single_fdp = single_rdp_to_fdp(alpha, rdp(alpha))
                 return -single_fdp(x)
 
         # This will use brent to start with 1,2.
-        results = minimize_scalar(fun, bracket=(0.5, 2), bounds=(0.5, alpha_max))
+        results = minimize_scalar(fun, bracket=(0.5, 2))#, bounds=(0.5, alpha_max))
         if results.success:
             return -results.fun
         else:
@@ -527,7 +543,7 @@ def rdp_to_fdp_and_fdp_grad_log(rdp, alpha_max=np.inf):
                 return log_one_minus_fdp_alpha(logx)
 
         # This will use brent to start with 1,2.
-        results = minimize_scalar(fun, bracket=(0.5, 2), bounds=(0.5, alpha_max))
+        results = minimize_scalar(fun, bracket=(0.5, 2))#, bounds=(0.5, alpha_max))
         if results.success:
             return [results.fun, results.x]
         else:
@@ -720,7 +736,7 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
         else:
             bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
-        #results = minimize_scalar(normal_equation, bounds=[-np.inf,0], bracket=[-1,-2])
+        #results = minimize_scalar(normal_equation, bracket=[-1,-2])
         results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
                                   options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
         if results.success:

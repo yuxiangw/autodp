@@ -18,14 +18,14 @@ def _parse_requirements(path):
 
 setup(
    name='autodp',
-   version='0.2.1b',
+   version='0.2.3',
    description='Automating Differential Privacy Computation',
    license="Apache",
    long_description="The package helps researchers and developers to correctly use advanced methods in differential privacy and obtain provable DP guarantees. The core of the package is an analytical moments accountant that keeps track of Renyi Differential Privacy in analytical forms.",
    author='Yu-Xiang Wang',
    author_email='yuxiangw@cs.ucsb.edu',
    url='https://github.com/yuxiangw/autodp',
-   download_url = 'https://github.com/yuxiangw/autodp/archive/refs/tags/v0.2.1b.tar.gz',   
+   download_url = 'https://github.com/yuxiangw/autodp/archive/refs/tags/v0.2.3.tar.gz',   
    keywords = ['Differential Privacy','Moments Accountant','Renyi Differential Privacy'],
    packages=['autodp'],  #same as name
    install_requires=[_parse_requirements('requirements.txt')], #external packages as dependencies
