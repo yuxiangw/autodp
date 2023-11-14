@@ -17,7 +17,7 @@ def _pld_sample_remove_only(sigma):
     t_list = [1.1**x for x in range(2, 20)]
     # Phi-function implementation
     gm = GaussianMechanism(sigma, name='GM3', RDP_off=True, approxDP_off=True, phi_off=False)
-    phi_gm = lambda t: gm.log_phi_p(t)
+
     # sampling ratio
     gamma = 0.01
     # direct compute the phi function of subsample gaussian for "removal only" neighboring relationship
