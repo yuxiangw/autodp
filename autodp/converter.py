@@ -163,6 +163,7 @@ def rdp_to_approxdp(rdp, alpha_max=np.inf, BBGHS_conversion=True):
                         return np.log(1 / delta) / (x - 1) + rdp(x)
 
             results = minimize_scalar(fun, method='Brent', bracket=(1,2))#, bounds=[1, alpha_max])
+            #results = minimize_scalar(fun, method='BBounded', bounds=[1, alpha_max])
             if results.success:
                 return results.fun
             else:
@@ -736,13 +737,16 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
             bound1 = np.log(-tmp - tmp**2 / 2 - tmp**3 / 6)
         else:
             bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
-        #results = minimize_scalar(normal_equation, bracket=[-1,-2])
-        results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
-                                  options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
+        results = minimize_scalar(normal_equation, bracket=[-0.5,-2])
+        #results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
+        #                          options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
         if results.success:
-            if abs(results.fun) > 1e-4 and abs(results.x)>1e-10:
+
+            if abs(results.fun) > 1e-3 and abs(results.x)>1e-10:
                 # This means that we hit xatol (x is close to 0, but
                 # the function value is not close to 0) In this case let's do an even larger search.
+
+                print(f'err is {results.fun}, {results.x}')
                 raise RuntimeError("'find_logx' fails to find the tangent line.")
             else:
                 return results.x
