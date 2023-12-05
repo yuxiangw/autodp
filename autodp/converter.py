@@ -163,6 +163,7 @@ def rdp_to_approxdp(rdp, alpha_max=np.inf, BBGHS_conversion=True):
                         return np.log(1 / delta) / (x - 1) + rdp(x)
 
             results = minimize_scalar(fun, method='Brent', bracket=(1,2))#, bounds=[1, alpha_max])
+            #results = minimize_scalar(fun, method='BBounded', bounds=[1, alpha_max])
             if results.success:
                 return results.fun
             else:
@@ -737,12 +738,15 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
         else:
             bound1 = np.log(1-np.exp(fun1(np.log(1-delta))))
         #results = minimize_scalar(normal_equation, bracket=[-1,-2])
-        results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1,0],
-                                  options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
+        results = minimize_scalar(normal_equation, method="Bounded", bounds=[bound1, 0],
+                                 options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
+
         if results.success:
-            if abs(results.fun) > 1e-4 and abs(results.x)>1e-10:
+            if abs(results.fun) > 1e-3 and abs(results.x)>1e-10:
                 # This means that we hit xatol (x is close to 0, but
                 # the function value is not close to 0) In this case let's do an even larger search.
+
+                print(f'err is {results.fun}, {results.x}')
                 raise RuntimeError("'find_logx' fails to find the tangent line.")
             else:
                 return results.x
@@ -811,9 +815,48 @@ def fdp_fdp_grad_to_approxdp(fdp, fdp_grad, log_flag = False):
 
 
 
-
-
+# The following version is used in the original paper.
 def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
+    """
+    given cdf function, output (epsilon, delta)
+    when take_log is true, the cdf is for log(p/q)
+    when take_log is false, the cdf is for p/q
+    """
+
+
+    def trade_off(threshold):
+        left = 0
+        right = 100# the range of e^epsilon
+        mid = (left+right)*1.0/2
+        while left<right and (right-left>1e-3):
+            #cur_value = cdf(np.log(mid)) + mid * cdf(-np.log(mid))
+            cur_value = cdf_p(np.log(mid)) + mid * cdf_q(-np.log(mid))
+            #print('cur delta before', 1-cur_value, 'cdf',cdf_p(np.log(mid)))
+            if np.abs(1-cur_value - threshold) < 1e-5:
+                return mid
+            if (right - left <= 1e-2):
+                return mid
+            print('current delta', 1-cur_value)
+            if 1-cur_value > threshold:
+                left = mid
+            else:
+                right = mid
+
+            mid = (right + left)*1./2
+            print('current search epsilon', np.log(mid))
+            #print('left', left, 'right', right)
+
+
+        print('no solution found', 'current delta',1-cur_value, 'required delta',threshold)
+
+    def approxdp(delta):
+        return np.log(trade_off(delta))
+
+    return approxdp
+
+
+# TODO: fix the following numerical instable version.
+def not_stable_cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
     """
     Solve eps(delta) query by searching a pair of cdf such that
     delta(eps) = 1 - cdf_p(eps) - e^eps*cdf_q(-eps)
@@ -823,6 +866,7 @@ def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
         quadrature: if False, using a FFT-based numerical tool to convert
         characteristic functions back to cdf.
     """
+    #print(f'***test cdf here {cdf_p(2)} {cdf_p(10)}')
     if quadrature == False:
         # Future work: convert characteristic functions to cdf using FFT.
         return cdf_to_approxdp_fft(cdf_p,cdf_q, l=1e5)
@@ -835,7 +879,7 @@ def cdf_to_approxdp(cdf_p,cdf_q, quadrature=True):
         print('Binary search epsilon',log_e, 'current delta', 1-result)
         return result
     # tol denotes the relative difference in delta term
-    exp_eps = numerical_inverse(trade_off, [0,1], tol=1e-2)
+    exp_eps = numerical_inverse(trade_off, [0,1], tol=1e-5)
     def approxdp(delta):
         t = exp_eps(1 - delta)
         return np.log(t)
@@ -1093,8 +1137,9 @@ def numerical_inverse(f, bounds=[1, np.inf], tol=1e-6):
             return abs(fun(x))
 
         #results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1, 2], tol=1e-10)
-        results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1,2], tol=tol)
-
+        #results = minimize_scalar(normal_equation, bounds=bounds, bracket=[1,2], tol=tol)
+        results = minimize_scalar(normal_equation, method="Bounded", bounds=bounds,
+                                  options={'xatol': 1e-10, 'maxiter': 500, 'disp': 0})
 
         #results = root_scalar(fun, options={'disp': False})
         if results.success:
